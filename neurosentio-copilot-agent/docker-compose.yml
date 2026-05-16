@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  copilot-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: neurosentio-copilot-agent
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source for hot-reload in development
+      - .:/app
+      # Persist the SQLite database file outside the container
+      - neurosentio_db:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./neurosentio.db
+      - DEBUG=true
+      - DEFAULT_USER_ID=demo-user
+    restart: unless-stopped
+
+volumes:
+  neurosentio_db:
