@@ -1,25 +1,13 @@
 """
-Utility: extract user_id from request header.
+Utility: user identity extraction.
 
-For local development, every request can pass:
-  X-User-ID: demo-user
+DEPRECATED: This module re-exports `get_current_user_id` from `app.core.auth`
+for backward compatibility. New code should import directly from `app.core.auth`.
 
-If no header is present, defaults to "demo-user".
-This will be replaced with real JWT-based auth when connecting to Supabase.
+The old `get_user_id` function is preserved as an alias.
 """
 
-from fastapi import Header
-from typing import Optional
-from app.core.config import get_settings
+from app.core.auth import get_current_user_id
 
-settings = get_settings()
-
-
-def get_user_id(
-    x_user_id: Optional[str] = Header(default=None, alias="X-User-ID"),
-) -> str:
-    """
-    FastAPI dependency: returns user_id from X-User-ID header.
-    Falls back to the configured default (demo-user) if not provided.
-    """
-    return x_user_id or settings.default_user_id
+# Backward-compatible alias — existing tests and internal code may reference this.
+get_user_id = get_current_user_id

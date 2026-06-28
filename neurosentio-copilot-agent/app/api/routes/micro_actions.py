@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.utils.time_utils import get_user_id
+from app.core.auth import get_current_user_id
 from app.schemas.micro_action_schema import (
     MicroAction as MicroActionSchema,
     MicroActionStatusUpdate,
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/micro-actions", tags=["MicroActions"])
 def update_micro_action_status(
     micro_action_id: str,
     body: MicroActionStatusUpdate,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -57,7 +57,7 @@ def update_micro_action_status(
 async def make_action_smaller(
     micro_action_id: str,
     body: MakeSmallerRequest,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """

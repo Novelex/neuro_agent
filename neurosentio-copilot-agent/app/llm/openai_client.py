@@ -22,6 +22,9 @@ class OpenAIClient(BaseLLMClient):
         user_prompt: str,
         schema_name: str = "",
     ) -> dict:
+        if not self._api_key or not self._api_key.strip():
+            raise LLMError("OpenAI API key is missing. Please set OPENAI_API_KEY in your environment/.env file.")
+
         try:
             from openai import AsyncOpenAI  # type: ignore
         except ImportError:

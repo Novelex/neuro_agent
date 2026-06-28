@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.utils.time_utils import get_user_id
+from app.core.auth import get_current_user_id
 from app.repositories.user_profile_repository import user_profile_repository
 from app.repositories.task_repository import task_repository
 from app.repositories.energy_repository import energy_repository
@@ -39,7 +39,7 @@ router = APIRouter(prefix="/copilot", tags=["Copilot"])
     summary="Get Copilot dashboard",
 )
 def copilot_dashboard(
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -61,7 +61,7 @@ def copilot_dashboard(
     summary="Get raw Copilot context",
 )
 def copilot_context(
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -90,7 +90,7 @@ def copilot_context(
     summary="Generate a quick rule-based daily plan",
 )
 def copilot_quick_plan(
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """

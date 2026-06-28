@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from datetime import date
 
 from app.core.database import get_db
-from app.utils.time_utils import get_user_id
+from app.core.auth import get_current_user_id
 from app.schemas.morning_plan_schema import MorningPlan, MorningPlanRequest
 from app.services.morning_plan_service import generate_morning_plan
 from app.repositories.copilot_repository import copilot_repository
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/copilot", tags=["MorningPlan"])
 )
 async def create_morning_plan(
     body: MorningPlanRequest,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -48,7 +48,7 @@ async def create_morning_plan(
     summary="Get today's morning plan",
 )
 async def get_today_morning_plan(
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """

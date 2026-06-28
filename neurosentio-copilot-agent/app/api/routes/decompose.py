@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.utils.time_utils import get_user_id
+from app.core.auth import get_current_user_id
 from app.schemas.micro_action_schema import (
     MicroAction as MicroActionSchema,
     TaskDecomposeRequest,
@@ -35,7 +35,7 @@ router = APIRouter(tags=["Decomposition"])
 async def decompose_task_endpoint(
     task_id: str,
     body: TaskDecomposeRequest,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -69,7 +69,7 @@ async def decompose_task_endpoint(
 )
 def get_task_micro_actions(
     task_id: str,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """

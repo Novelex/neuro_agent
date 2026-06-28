@@ -20,12 +20,14 @@ All generated language must be gentle, specific, non-shaming, and low-friction.
 
 import asyncio
 import logging
+import time
 from typing import Optional, List
 
 from sqlalchemy.orm import Session
 
 from app.repositories.task_repository import task_repository
 from app.repositories.micro_action_repository import micro_action_repository
+from app.repositories.llm_usage_repository import llm_usage_repository
 from app.llm.base import BaseLLMClient, LLMError
 from app.llm.client_factory import get_llm_client
 from app.schemas.micro_action_schema import (
@@ -37,8 +39,12 @@ from app.schemas.micro_action_schema import (
     MakeSmallerResponse,
 )
 from app.models.micro_action import MicroAction as MicroActionModel
+from app.prompts.prompt_versions import TASK_DECOMPOSITION_PROMPT_VERSION
+from app.utils.llm_costs import estimate_llm_cost
+from app.services.llm_rate_limit_service import check_rate_limit, log_rate_limit_skip
 
 logger = logging.getLogger(__name__)
+PROMPT_VERSION = TASK_DECOMPOSITION_PROMPT_VERSION
 
 # ──────────────────────────────────────────────────────────────────────
 # LLM Prompts
@@ -305,23 +311,64 @@ async def decompose_task(
     source = "llm"
     actions: List[MicroActionCreate] = []
     mode = _infer_mode(request.current_energy)
+    llm_status = "success"
+    error_type = None
+    latency_ms = None
 
-    try:
-        raw = await llm_client.generate_json(
-            system_prompt=SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            schema_name="TaskDecomposeResponse",
+    # ── Rate limit check ──────────────────────────────────────────────
+    client_class = llm_client.__class__.__name__
+    provider = "mock" if client_class == "MockLLMClient" else client_class.lower().replace("client", "")
+    from app.core.llm_config import get_llm_settings
+    settings = get_llm_settings()
+    model = settings.llm_model or None
+
+    rate_result = check_rate_limit(db, user_id)
+    if not rate_result["allowed"]:
+        logger.warning("Rate limit exceeded for user %s: %s", user_id, rate_result["reason"])
+        log_rate_limit_skip(
+            db=db, user_id=user_id, feature="task_decomposition",
+            provider=provider, reason=rate_result["reason"],
+            prompt_version=PROMPT_VERSION,
         )
-        actions = _parse_llm_output(raw, request.max_actions)
-
-        # Detect mock vs real LLM by checking the class name
-        client_class = llm_client.__class__.__name__
-        source = "mock" if client_class == "MockLLMClient" else "llm"
-
-    except (LLMError, ValueError, Exception) as exc:
-        logger.warning("LLM call failed — using fallback decomposition. Reason: %s", exc)
         actions, mode = _fallback_decompose(task.title, request.current_energy, request.max_actions)
         source = "fallback"
+        llm_status = "skipped_rate_limit"
+    else:
+        t0 = time.monotonic()
+        try:
+            raw = await llm_client.generate_json(
+                system_prompt=SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                schema_name="TaskDecomposeResponse",
+            )
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            actions = _parse_llm_output(raw, request.max_actions)
+            source = "mock" if client_class == "MockLLMClient" else "llm"
+            llm_status = "success"
+
+        except (LLMError, ValueError, Exception) as exc:
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            logger.warning("LLM call failed — using fallback decomposition. Reason: %s", exc)
+            actions, mode = _fallback_decompose(task.title, request.current_energy, request.max_actions)
+            source = "fallback"
+            llm_status = "fallback"
+            error_type = type(exc).__name__
+
+        # Log usage metadata (no prompt text stored)
+        cost = estimate_llm_cost(provider, model, None, None)
+        llm_usage_repository.create_log(
+            db=db,
+            user_id=user_id,
+            feature="task_decomposition",
+            provider=provider,
+            model=model,
+            prompt_version=PROMPT_VERSION,
+            status=llm_status,
+            error_type=error_type,
+            estimated_cost_usd=cost,
+            latency_ms=latency_ms,
+            request_metadata={"schema_name": "TaskDecomposeResponse", "prompt_version": PROMPT_VERSION},
+        )
 
     # ── 6. Persist ────────────────────────────────────────────────────
     saved = micro_action_repository.create_many(db, user_id, task_id, actions)

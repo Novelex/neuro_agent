@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.utils.time_utils import get_user_id
+from app.core.auth import get_current_user_id
 from app.schemas.transition_script_schema import (
     TransitionScript as TransitionScriptSchema,
     TransitionScriptGenerateRequest,
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/transitions", tags=["Transitions"])
 )
 def generate_transition(
     body: TransitionScriptGenerateRequest,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -54,7 +54,7 @@ def generate_transition(
     summary="List all transition scripts for the current user",
 )
 def list_transitions(
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     return transition_script_repository.list_for_user(db, user_id)
@@ -67,7 +67,7 @@ def list_transitions(
 )
 def get_latest_by_type(
     transition_type: str,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     script = transition_script_repository.get_latest_by_type(db, user_id, transition_type)
@@ -87,7 +87,7 @@ def get_latest_by_type(
 def rate_transition(
     script_id: str,
     body: TransitionScriptRatingUpdate,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     updated = transition_script_repository.update_rating(db, user_id, script_id, body.success_rating)
@@ -103,7 +103,7 @@ def rate_transition(
 )
 def mark_used(
     script_id: str,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     updated = transition_script_repository.mark_used(db, user_id, script_id)
@@ -119,7 +119,7 @@ def mark_used(
 )
 def delete_transition(
     script_id: str,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     deleted = transition_script_repository.delete(db, user_id, script_id)

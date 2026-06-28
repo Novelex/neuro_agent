@@ -42,4 +42,26 @@ class EnergyRepository:
         return log
 
 
+    def list_recent(self, db: Session, user_id: str, days: int) -> List[EnergyLog]:
+        """List energy logs within the last N days."""
+        from datetime import datetime, timedelta, timezone
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        return (
+            db.query(EnergyLog)
+            .filter(EnergyLog.user_id == user_id, EnergyLog.logged_at >= cutoff)
+            .order_by(EnergyLog.logged_at.desc())
+            .all()
+        )
+
+    def list_between(self, db: Session, user_id: str, start: datetime, end: datetime) -> List[EnergyLog]:
+        """List energy logs logged between start and end datetimes."""
+        return (
+            db.query(EnergyLog)
+            .filter(EnergyLog.user_id == user_id, EnergyLog.logged_at >= start, EnergyLog.logged_at <= end)
+            .order_by(EnergyLog.logged_at.asc())
+            .all()
+        )
+
+
 energy_repository = EnergyRepository()
+

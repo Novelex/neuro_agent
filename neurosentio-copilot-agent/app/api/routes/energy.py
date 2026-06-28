@@ -12,9 +12,11 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.utils.time_utils import get_user_id
+from app.core.auth import get_current_user_id
 from app.repositories.energy_repository import energy_repository
-from app.schemas.energy_log_schema import EnergyCreate, Energy
+from app.schemas.energy_log_schema import EnergyCreate, Energy, EnergyPatternsResponse
+from app.services.energy_pattern_service import get_energy_patterns
+
 
 router = APIRouter(prefix="/energy", tags=["Energy"])
 
@@ -25,7 +27,7 @@ router = APIRouter(prefix="/energy", tags=["Energy"])
 # ──────────────────────────────────────────────────────────────────────
 @router.get("/latest", response_model=Energy, summary="Get latest energy log")
 def get_latest_energy(
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -44,7 +46,7 @@ def get_latest_energy(
 # ──────────────────────────────────────────────────────────────────────
 @router.get("/history", response_model=List[Energy], summary="Get energy log history")
 def get_energy_history(
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -62,7 +64,7 @@ def get_energy_history(
 @router.post("/log", response_model=Energy, status_code=201, summary="Log current energy state")
 def log_energy(
     body: EnergyCreate,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -71,3 +73,19 @@ def log_energy(
     sensory_state: calm | okay | overstimulated | shutdown | anxious | unknown
     """
     return energy_repository.create(db, user_id, body)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# GET /energy/patterns
+# ──────────────────────────────────────────────────────────────────────
+@router.get("/patterns", response_model=EnergyPatternsResponse, summary="Get aggregated energy patterns")
+def get_user_energy_patterns(
+    days: int = 14,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Get aggregated energy patterns for the current user based on history of the last N days.
+    """
+    return get_energy_patterns(db, user_id, days)
+

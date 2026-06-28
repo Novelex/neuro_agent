@@ -1,6 +1,11 @@
 """
 Database engine, session factory, and base model setup.
-Uses SQLite for local development; swap DATABASE_URL for Postgres/Supabase later.
+
+Supports:
+  - SQLite for local development (connect_args for thread safety)
+  - PostgreSQL/Supabase for production (no SQLite-specific args)
+
+Set DATABASE_URL in .env to switch between backends.
 """
 
 from sqlalchemy import create_engine
@@ -9,8 +14,9 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# connect_args only needed for SQLite (thread-safety)
-connect_args = {"check_same_thread": False} if "sqlite" in settings.database_url else {}
+# SQLite requires check_same_thread=False for FastAPI's threaded access;
+# Postgres does not need (and rejects) this argument.
+connect_args = {"check_same_thread": False} if settings.is_sqlite else {}
 
 engine = create_engine(
     settings.database_url,
@@ -39,4 +45,8 @@ def init_db():
     """Create all tables on startup (dev convenience)."""
     # Import all models so their tables are registered on Base.metadata
     from app.models import user_profile, task, energy_log, copilot_plan, micro_action  # noqa: F401
+    from app.models import transition_script, reply_draft, llm_usage_log  # noqa: F401
+    from app.models import calendar_event, overload_event  # noqa: F401
+    from app.models import message_item, next_action_prompt, replan_event  # noqa: F401
+    from app.models import privacy_preferences, privacy_audit_log  # noqa: F401
     Base.metadata.create_all(bind=engine)

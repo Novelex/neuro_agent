@@ -1,16 +1,19 @@
 """
 Mock LLM client.
 
-Returns deterministic fake decompositions — no API key required.
+Returns deterministic fake outputs — no API key required.
 Used by default in local development and all tests.
 
-The output is intentionally varied slightly by task title so different tasks
-produce different but stable results.
+Supports schema_name:
+  - "TaskDecomposeResponse"  → micro-action list
+  - "reply_draft"            → reply draft options
+  - anything else            → generic micro-action fallback
 """
 
 from app.llm.base import BaseLLMClient
 
-# Neurodivergent-friendly micro-action templates
+# ── Task decomposition templates ──────────────────────────────────────
+
 _DEFAULT_ACTIONS = [
     {
         "title": "Open the place where this task lives",
@@ -94,10 +97,154 @@ _RECOVERY_ACTIONS = [
     },
 ]
 
+# ── Reply draft templates ──────────────────────────────────────────────
+
+_REPLY_DEFAULT = {
+    "draft_options": [
+        {
+            "type": "short",
+            "text": "Thanks for your message. I'll take a look and get back to you soon.",
+        },
+        {
+            "type": "warm",
+            "text": "Thanks for reaching out. I'll review this and send you a proper response soon.",
+        },
+        {
+            "type": "detailed",
+            "text": (
+                "Thanks for your message. I've received it and will review the details carefully. "
+                "I'll follow up with a clearer answer once I've had time to check everything."
+            ),
+        },
+        {
+            "type": "boundary",
+            "text": (
+                "Thanks for your message. I'm not able to take this on today, "
+                "but I can follow up when I have more capacity."
+            ),
+        },
+    ]
+}
+
+_REPLY_ACCEPT = {
+    "draft_options": [
+        {"type": "short", "text": "Yes, that works for me. Thanks."},
+        {"type": "warm", "text": "Yes, that works for me. Thanks for checking."},
+        {
+            "type": "detailed",
+            "text": (
+                "Yes, that works for me. I'm happy to go ahead with this "
+                "and will follow up if anything changes."
+            ),
+        },
+        {
+            "type": "boundary",
+            "text": "That works for me. I'll let you know if anything changes on my end.",
+        },
+    ]
+}
+
+_REPLY_DECLINE = {
+    "draft_options": [
+        {
+            "type": "short",
+            "text": "Thanks for thinking of me, but I can't take this on right now.",
+        },
+        {
+            "type": "warm",
+            "text": (
+                "Thanks for reaching out. I appreciate it, "
+                "but I'm not able to take this on right now."
+            ),
+        },
+        {
+            "type": "detailed",
+            "text": (
+                "Thanks for reaching out and thinking of me. "
+                "I'm not able to take this on right now, but I appreciate you asking."
+            ),
+        },
+        {
+            "type": "boundary",
+            "text": "I'm not available for this today. I'll let you know if that changes.",
+        },
+    ]
+}
+
+_REPLY_DELAY = {
+    "draft_options": [
+        {
+            "type": "short",
+            "text": "Thanks for your message. I'll get back to you tomorrow.",
+        },
+        {
+            "type": "warm",
+            "text": (
+                "Thanks for your message. I need a little more time to respond properly, "
+                "and I'll get back to you tomorrow."
+            ),
+        },
+        {
+            "type": "detailed",
+            "text": (
+                "Thanks for your message. I've received this and want to respond properly. "
+                "I need a little more time, so I'll get back to you tomorrow."
+            ),
+        },
+        {
+            "type": "boundary",
+            "text": "I need more time to respond properly. I'll be in touch tomorrow.",
+        },
+    ]
+}
+
+_REPLY_URGENT = {
+    "draft_options": [
+        {
+            "type": "short",
+            "text": "Got your message — I'll look at this now.",
+        },
+        {
+            "type": "warm",
+            "text": "Thanks for flagging this as urgent. I'll look at it now and get back to you shortly.",
+        },
+        {
+            "type": "detailed",
+            "text": (
+                "Thanks for your message — I can see this is urgent. "
+                "I'll review it now and follow up with you as soon as I have an answer."
+            ),
+        },
+        {
+            "type": "boundary",
+            "text": (
+                "I've seen your message. I'll review this shortly — "
+                "please allow me a little time to give you a proper response."
+            ),
+        },
+    ]
+}
+
+
+def _pick_reply_template(user_prompt: str, is_low_energy: bool) -> dict:
+    """Pick the most appropriate reply template based on prompt signals."""
+    prompt_lower = user_prompt.lower()
+
+    if "accept" in prompt_lower:
+        return _REPLY_ACCEPT
+    if "decline" in prompt_lower:
+        return _REPLY_DECLINE
+    if "delay" in prompt_lower or "more time" in prompt_lower:
+        return _REPLY_DELAY
+    if "urgent" in prompt_lower:
+        return _REPLY_URGENT
+
+    return _REPLY_DEFAULT
+
 
 class MockLLMClient(BaseLLMClient):
     """
-    Deterministic mock — returns pre-written micro-action templates.
+    Deterministic mock — returns pre-written templates.
     Stable across test runs. No network calls. No API keys.
     """
 
@@ -107,12 +254,44 @@ class MockLLMClient(BaseLLMClient):
         user_prompt: str,
         schema_name: str = "",
     ) -> dict:
-        # Detect recovery signal from the user prompt
+
+        # ── Smoke Test mode ───────────────────────────────────────────
+        if schema_name == "smoke_test":
+            return {"status": "ok"}
+
+        # ── Transition Script mode ────────────────────────────────────
+        if schema_name == "transition_script":
+            return {
+                "title": "Transition: Leaving work",
+                "script_steps": [
+                    "Close your laptop lid.",
+                    "Take a deep breath.",
+                    "Step outside your work environment."
+                ],
+                "message": "You only need the first movement."
+            }
+
+        # ── Reply draft mode ──────────────────────────────────────────
+        if schema_name == "reply_draft":
+            is_low_energy = False
+            for line in user_prompt.splitlines():
+                if "current energy:" in line.lower():
+                    parts = line.split(":")
+                    if len(parts) > 1:
+                        try:
+                            val = int(parts[1].strip())
+                            if val < 30:
+                                is_low_energy = True
+                        except ValueError:
+                            pass
+
+            return _pick_reply_template(user_prompt, is_low_energy)
+
+        # ── Task decomposition mode (default) ─────────────────────────
         is_recovery = False
         lines = user_prompt.splitlines()
         for i, line in enumerate(lines):
             if "current energy:" in line.lower():
-                # The energy value is on the next non-empty line
                 for j in range(i + 1, min(i + 3, len(lines))):
                     candidate = lines[j].strip()
                     if candidate:

@@ -17,11 +17,15 @@ def get_llm_client() -> BaseLLMClient:
     LLM_PROVIDER=mock       → MockLLMClient (default, no API key needed)
     LLM_PROVIDER=anthropic  → AnthropicClient (requires ANTHROPIC_API_KEY)
     LLM_PROVIDER=openai     → OpenAIClient (requires OPENAI_API_KEY)
+    LLM_PROVIDER=openrouter → OpenRouterClient (requires OPENROUTER_API_KEY)
     """
+    from app.llm.base import LLMError
     settings = get_llm_settings()
     provider = settings.llm_provider.lower().strip()
 
     if provider == "anthropic":
+        if not settings.anthropic_api_key or not settings.anthropic_api_key.strip():
+            raise LLMError("Anthropic API key is missing. Please set ANTHROPIC_API_KEY in your environment/.env file.")
         # Lazy import so tests don't require the anthropic package
         from app.llm.anthropic_client import AnthropicClient
         return AnthropicClient(
@@ -31,6 +35,8 @@ def get_llm_client() -> BaseLLMClient:
         )
 
     if provider == "openai":
+        if not settings.openai_api_key or not settings.openai_api_key.strip():
+            raise LLMError("OpenAI API key is missing. Please set OPENAI_API_KEY in your environment/.env file.")
         from app.llm.openai_client import OpenAIClient
         return OpenAIClient(
             api_key=settings.openai_api_key,
@@ -38,5 +44,19 @@ def get_llm_client() -> BaseLLMClient:
             timeout=settings.llm_timeout_seconds,
         )
 
+    if provider == "openrouter":
+        if not settings.openrouter_api_key or not settings.openrouter_api_key.strip():
+            raise LLMError(
+                "OpenRouter API key is missing. "
+                "Please set OPENROUTER_API_KEY in your environment/.env file."
+            )
+        from app.llm.openrouter_client import OpenRouterClient
+        return OpenRouterClient(
+            api_key=settings.openrouter_api_key,
+            model=settings.llm_model or settings.openrouter_model,
+            timeout=settings.llm_timeout_seconds,
+        )
+
     # Default — always safe to run
     return MockLLMClient()
+

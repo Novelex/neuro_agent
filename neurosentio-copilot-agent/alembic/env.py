@@ -41,6 +41,15 @@ import app.models.energy_log          # noqa: F401
 import app.models.micro_action        # noqa: F401
 import app.models.copilot_plan        # noqa: F401
 import app.models.transition_script   # noqa: F401
+import app.models.reply_draft         # noqa: F401
+import app.models.llm_usage_log       # noqa: F401
+import app.models.calendar_event      # noqa: F401
+import app.models.overload_event      # noqa: F401
+import app.models.message_item        # noqa: F401
+import app.models.next_action_prompt  # noqa: F401
+import app.models.replan_event        # noqa: F401
+import app.models.privacy_preferences  # noqa: F401
+import app.models.privacy_audit_log   # noqa: F401
 
 target_metadata = Base.metadata
 

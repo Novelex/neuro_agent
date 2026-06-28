@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from pydantic import BaseModel, Field
 
 SensoryStateEnum = Literal["calm", "okay", "overstimulated", "shutdown", "anxious", "unknown"]
@@ -33,3 +33,12 @@ class Energy(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class EnergyPatternsResponse(BaseModel):
+    high_energy_hours: List[int]
+    low_energy_hours: List[int]
+    best_focus_window: Optional[str] = None
+    confidence_tier: Literal["low", "medium", "high"]
+    hourly_averages: dict[str, float]
+

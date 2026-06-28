@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from datetime import datetime, date
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from pydantic import BaseModel
 
 PriorityEnum = Literal["low", "medium", "high"]
@@ -62,3 +62,10 @@ class Task(TaskBase):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class StuckTaskResponse(BaseModel):
+    task: Task
+    stuck_reason: Literal["inactive", "overdue"]
+    suggestion: str
+

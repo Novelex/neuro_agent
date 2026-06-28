@@ -17,6 +17,10 @@ def calculate_overload_risk(
     latest_energy: Optional[EnergyLogModel],
     open_tasks_count: int,
     high_priority_count: int,
+    event_count: Optional[int] = None,
+    back_to_back_count: Optional[int] = None,
+    high_load_event_exists: Optional[bool] = None,
+    total_meeting_minutes: Optional[int] = None,
 ) -> dict:
     """
     Returns:
@@ -59,6 +63,24 @@ def calculate_overload_risk(
         risk_score += 15
         reasons.append(f"{high_priority_count} high-priority tasks are waiting.")
 
+    # ── Calendar-aware scoring ────────────────────────────────────────
+    # Only apply if at least one calendar parameter is provided (is not None)
+    has_calendar = any(x is not None for x in [event_count, back_to_back_count, high_load_event_exists, total_meeting_minutes])
+    
+    if has_calendar:
+        if event_count is not None and event_count >= 4:
+            risk_score += 20
+            reasons.append(f"You have {event_count} events scheduled today.")
+        if back_to_back_count is not None and back_to_back_count >= 2:
+            risk_score += 25
+            reasons.append(f"You have {back_to_back_count} back-to-back events scheduled.")
+        if high_load_event_exists is True:
+            risk_score += 20
+            reasons.append("High-load events exist today.")
+        if total_meeting_minutes is not None and total_meeting_minutes > 240:
+            risk_score += 20
+            reasons.append(f"Over 4 hours of meetings scheduled ({total_meeting_minutes} minutes).")
+
     mode = "recovery" if risk_score >= HIGH_RISK_THRESHOLD else "normal"
 
     return {
@@ -66,3 +88,4 @@ def calculate_overload_risk(
         "mode": mode,
         "reasons": reasons,
     }
+

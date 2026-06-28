@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.utils.time_utils import get_user_id
+from app.core.auth import get_current_user_id
 from app.repositories.user_profile_repository import user_profile_repository
 from app.schemas.user_profile_schema import Profile, ProfileUpdate
 
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/profile", tags=["Profile"])
 
 @router.get("", response_model=Profile, summary="Get or create user profile")
 def get_profile(
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """
@@ -27,7 +27,7 @@ def get_profile(
 @router.put("", response_model=Profile, summary="Update user profile")
 def update_profile(
     body: ProfileUpdate,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """

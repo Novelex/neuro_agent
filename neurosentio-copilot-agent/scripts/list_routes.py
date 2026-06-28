@@ -1,15 +1,19 @@
-"""Utility script to list all API routes."""
+import sys
 from app.main import app
 
-SKIP = {'/docs', '/redoc', '/openapi.json', '/docs/oauth2-redirect'}
-business = []
-for r in app.routes:
-    if hasattr(r, 'methods') and r.path not in SKIP:
-        methods = r.methods - {'HEAD', 'OPTIONS'}
+def list_routes():
+    routes = []
+    for route in app.routes:
+        # Check if it has a methods attribute (APIRoute)
+        methods = getattr(route, "methods", None)
         if methods:
-            business.append((sorted(methods), r.path))
+            methods_str = ",".join(methods)
+            routes.append(f"{methods_str} {route.path} {route.name}")
+        else:
+            routes.append(f"GET {route.path} {route.name}")
+    print(f"Total Routes: {len(app.routes)}")
+    for r in sorted(routes):
+        print(r)
 
-business.sort(key=lambda x: x[1])
-print(f"Business endpoints: {len(business)}")
-for m, p in business:
-    print(f"  {','.join(m):6s}  {p}")
+if __name__ == "__main__":
+    list_routes()
