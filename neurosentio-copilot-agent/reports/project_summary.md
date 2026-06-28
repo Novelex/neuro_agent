@@ -1,6 +1,6 @@
 # NeuroSentio Copilot Agent – Comprehensive End-to-End Summary
 
-**Current Version:** `v0.7.1`  
+**Current Version:** `v0.7.3`  
 **Focus:** Executive Function Support, Privacy-First Architecture, Local-First Defaults, PostgreSQL Production Readiness.
 
 This document serves as an extremely detailed chronological summary of the entire development and hardening lifecycle of the NeuroSentio Copilot Agent backend.
@@ -88,6 +88,19 @@ This document serves as an extremely detailed chronological summary of the entir
   - Authored `scripts/test_openrouter_live.py` testing 5 scenarios (Factory wiring, Raw JSON generation, Task decomposition prompt, Reply draft generation, and Error handling).
   - Successfully validated 21 distinct assertions against live OpenRouter DeepSeek V3 endpoints.
 
+## Phase 8: Dynamic Cheapest Model Routing & Client Throttling (v0.7.3)
+**Goal:** Route LLM calls to the cheapest active OpenRouter model supporting structured outputs, and enforce client-side token bucket rate limiting.
+
+* **Lowest-Cost Model Auto-Routing**:
+  - Implemented dynamic querying of the OpenRouter `/api/v1/models` endpoint inside `OpenRouterClient` when the model name is configured as `"auto"`.
+  - The endpoint is sorted by `pricing-low-to-high` and filtered for `supported_parameters=response_format` to guarantee JSON mode compatibility.
+  - Added an in-memory cache on the client instance that retains the cheapest model ID for 1 hour to prevent redundant network calls.
+* **Token Bucket Rate Limiter**:
+  - Added a thread-safe async `TokenBucketRateLimiter` to `OpenRouterClient` to throttle requests under 20 requests per minute (the limit for OpenRouter free tiers), preventing HTTP 429 errors.
+* **Hermetic Testing**:
+  - Authored [test_model_routing_rate_limiting.py](file:///c:/Users/daniy/Downloads/neuro_agent/neurosentio-copilot-agent/tests/test_model_routing_rate_limiting.py) to test token bucket throttling intervals and cached model resolution.
+  - Created [conftest.py](file:///c:/Users/daniy/Downloads/neuro_agent/neurosentio-copilot-agent/tests/conftest.py) to force the `mock` provider globally for all unit tests, keeping local tests fast and credit-free.
+
 ---
 
 ### What's Left / Next Steps
@@ -102,8 +115,9 @@ This document serves as an extremely detailed chronological summary of the entir
 - **Framework**: FastAPI + Pydantic v2
 - **Database**: SQLite (Local Default) / PostgreSQL 16 via psycopg2 (Production)
 - **Schema Management**: Alembic
-- **Testing**: Pytest (205 Baseline tests + Live Server HTTP E2E tests + OpenRouter Live integration test suite)
+- **Testing**: Pytest (209 Baseline tests + Live Server HTTP E2E tests + OpenRouter Live integration test suite)
 - **AI Integrations**: Provider-agnostic wrapper (Mock, OpenAI, Anthropic, OpenRouter)
 - **Auth**: Flexible (Header Bypass for Dev, Supabase HS256 for Prod)
 
 **Status:** The NeuroSentio Copilot Agent backend is functionally complete, structurally robust, privacy-hardened, and **officially verified for both local PostgreSQL and live OpenRouter LLM production integrations.**
+

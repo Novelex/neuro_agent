@@ -42,7 +42,8 @@ async def test_openai_missing_key_raises_clean_llm_error():
 
 def test_llm_settings_defaults_are_safe():
     """Asserts default logging variables and credentials are key-free."""
-    settings = get_llm_settings()
+    from app.core.llm_config import LLMSettings
+    settings = LLMSettings(_env_file=None)
     assert settings.llm_provider == "mock"
     assert settings.anthropic_api_key == ""
     assert settings.openai_api_key == ""

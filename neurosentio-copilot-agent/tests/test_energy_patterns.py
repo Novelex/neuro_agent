@@ -68,12 +68,13 @@ def test_confidence_tier_medium_and_high_energy_hours():
     # Hour 22: let's make it 20 average (low_energy_hours should include 22 since 20 <= 35)
     # Other hours: 3 logs at hour 10 with 50 battery level
     
-    dt_hour_14_1 = datetime(2026, 5, 10, 14, 0, tzinfo=timezone.utc)
-    dt_hour_14_2 = datetime(2026, 5, 11, 14, 0, tzinfo=timezone.utc)
-    dt_hour_22_1 = datetime(2026, 5, 10, 22, 0, tzinfo=timezone.utc)
-    dt_hour_10_1 = datetime(2026, 5, 10, 10, 0, tzinfo=timezone.utc)
-    dt_hour_10_2 = datetime(2026, 5, 11, 10, 0, tzinfo=timezone.utc)
-    dt_hour_10_3 = datetime(2026, 5, 12, 10, 0, tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    dt_hour_14_1 = (now - timedelta(days=1)).replace(hour=14, minute=0, second=0, microsecond=0)
+    dt_hour_14_2 = (now - timedelta(days=2)).replace(hour=14, minute=0, second=0, microsecond=0)
+    dt_hour_22_1 = (now - timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0)
+    dt_hour_10_1 = (now - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+    dt_hour_10_2 = (now - timedelta(days=2)).replace(hour=10, minute=0, second=0, microsecond=0)
+    dt_hour_10_3 = (now - timedelta(days=3)).replace(hour=10, minute=0, second=0, microsecond=0)
     
     logs = [
         {"battery_level": 80, "sensory_state": "calm", "logged_at": dt_hour_14_1.isoformat()},
@@ -129,7 +130,8 @@ def test_best_focus_window():
     
     # We want a 3-hour peak at hours 10, 11, 12 (e.g. averages 90, 95, 90)
     # Other hours can be at a default/lower level
-    base_time = datetime(2026, 5, 15, 0, 0, tzinfo=timezone.utc)
+    base_time = datetime.now(timezone.utc) - timedelta(days=1)
+    base_time = base_time.replace(minute=0, second=0, microsecond=0)
     
     # Let's post logs for hour 10, 11, 12
     focus_logs = [

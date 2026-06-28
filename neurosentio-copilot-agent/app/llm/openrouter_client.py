@@ -9,17 +9,91 @@ Requires: pip install openai (already in requirements.txt)
 """
 
 import json
+import asyncio
+import time
+import logging
+from typing import Optional
 from app.llm.base import BaseLLMClient, LLMError
+
+logger = logging.getLogger(__name__)
+
+
+class TokenBucketRateLimiter:
+    """Async-safe Token Bucket rate limiter for client-side API throttling."""
+
+    def __init__(self, rate: float, capacity: float):
+        self.rate = rate          # tokens per second
+        self.capacity = capacity  # max tokens
+        self.tokens = capacity
+        self.last_update = time.monotonic()
+        self._lock = asyncio.Lock()
+
+    async def acquire(self):
+        async with self._lock:
+            now = time.monotonic()
+            elapsed = now - self.last_update
+            self.last_update = now
+            self.tokens = min(self.capacity, self.tokens + elapsed * self.rate)
+            if self.tokens < 1.0:
+                wait_time = (1.0 - self.tokens) / self.rate
+                await asyncio.sleep(wait_time)
+                self.tokens = 0.0
+                self.last_update = time.monotonic()
+            else:
+                self.tokens -= 1.0
 
 
 class OpenRouterClient(BaseLLMClient):
 
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
+    # Static fields for cheapest model cache (shared across all client instances)
+    _cached_cheapest_model: Optional[str] = None
+    _cache_time: float = 0.0
+
+    # Static rate limiter: limit requests to ~20 requests per minute to avoid 429 errors
+    _rate_limiter = TokenBucketRateLimiter(rate=0.33, capacity=5.0)
+
     def __init__(self, api_key: str, model: str, timeout: int = 30):
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
+
+    async def _get_model_id(self) -> str:
+        """Resolve model ID, dynamically checking for the cheapest model if 'auto' or 'lowest-cost'."""
+        if self._model not in ("auto", "lowest-cost", "cheapest", "cheapest-model"):
+            return self._model
+
+        now = time.time()
+        # Use cached model ID if still fresh (1 hour duration)
+        if OpenRouterClient._cached_cheapest_model and (now - OpenRouterClient._cache_time < 3600):
+            return OpenRouterClient._cached_cheapest_model
+
+        import httpx
+        url = f"{self.OPENROUTER_BASE_URL}/models?supported_parameters=response_format&sort=pricing-low-to-high"
+        try:
+            logger.info("Querying OpenRouter for the cheapest model supporting response_format...")
+            async with httpx.AsyncClient(timeout=10) as client:
+                headers = {}
+                if self._api_key:
+                    headers["Authorization"] = f"Bearer {self._api_key}"
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    models = data.get("data", [])
+                    if models:
+                        for m in models:
+                            model_id = m.get("id")
+                            if model_id:
+                                logger.info(f"Resolved cheapest OpenRouter model: {model_id}")
+                                OpenRouterClient._cached_cheapest_model = model_id
+                                OpenRouterClient._cache_time = now
+                                return model_id
+        except Exception as e:
+            logger.warning(f"Failed to fetch cheapest OpenRouter model: {e}. Falling back to default.")
+
+        # Fallback if request fails
+        return "google/gemini-2.5-flash:free"
 
     async def generate_json(
         self,
@@ -41,6 +115,12 @@ class OpenRouterClient(BaseLLMClient):
                 "Run: pip install openai"
             )
 
+        # Ensure rate limiter acquires a token (client-side throttling)
+        await self._rate_limiter.acquire()
+
+        # Resolve model ID dynamically
+        model_to_use = await self._get_model_id()
+
         # Point the OpenAI SDK at OpenRouter's endpoint
         client = AsyncOpenAI(
             api_key=self._api_key,
@@ -48,13 +128,12 @@ class OpenRouterClient(BaseLLMClient):
             timeout=self._timeout,
         )
 
-        import time
         # Append a unique suffix to system prompt to guarantee a unique prompt hash (bypassing all caches)
         unique_system_prompt = system_prompt + f"\n\n(System metadata tag to ensure request uniqueness: {time.time_ns()})"
 
         try:
             response = await client.chat.completions.create(
-                model=self._model,
+                model=model_to_use,
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": unique_system_prompt},
