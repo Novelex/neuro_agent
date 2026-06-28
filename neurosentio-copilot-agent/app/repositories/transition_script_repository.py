@@ -57,12 +57,17 @@ class TransitionScriptRepository:
         )
 
     def list_for_user(
-        self, db: Session, user_id: str, limit: int = 50
+        self,
+        db: Session,
+        user_id: str,
+        limit: int = 50,
+        offset: int = 0,
     ) -> List[TransitionScriptModel]:
         return (
             db.query(TransitionScriptModel)
             .filter(TransitionScriptModel.user_id == user_id)
             .order_by(TransitionScriptModel.created_at.desc())
+            .offset(offset)
             .limit(limit)
             .all()
         )

@@ -172,9 +172,19 @@ def extract_free_blocks(
     # 2. Extract busy intervals and clamp to day start/end
     intervals: List[Tuple[datetime, datetime]] = []
     for ev in busy_events:
+        # Align naive and aware datetimes if mismatched
+        ev_start = ev.start_time
+        ev_end = ev.end_time
+        if ev_start.tzinfo is not None and day_start.tzinfo is None:
+            day_start = day_start.replace(tzinfo=ev_start.tzinfo)
+            day_end = day_end.replace(tzinfo=ev_start.tzinfo)
+        elif ev_start.tzinfo is None and day_start.tzinfo is not None:
+            day_start = day_start.replace(tzinfo=None)
+            day_end = day_end.replace(tzinfo=None)
+
         # Clamp event times to the day boundaries
-        s = max(ev.start_time, day_start)
-        e = min(ev.end_time, day_end)
+        s = max(ev_start, day_start)
+        e = min(ev_end, day_end)
         if s < e:
             intervals.append((s, e))
 
@@ -229,8 +239,15 @@ def build_day_summary(events: List[Any], check_date: date) -> CalendarDaySummary
     Build CalendarDaySummary for a given date.
     Defines working day window as 09:00 to 17:00 for standard free block extraction.
     """
-    day_start = datetime.combine(check_date, time(9, 0))
-    day_end = datetime.combine(check_date, time(17, 0))
+    # Detect timezone from events if any are timezone-aware
+    tz = None
+    for ev in events:
+        if ev.start_time and ev.start_time.tzinfo is not None:
+            tz = ev.start_time.tzinfo
+            break
+
+    day_start = datetime.combine(check_date, time(9, 0), tzinfo=tz)
+    day_end = datetime.combine(check_date, time(17, 0), tzinfo=tz)
 
     event_count = len(events)
     high_load_event_count = sum(1 for e in events if getattr(e, "load_score", 0) >= 60)

@@ -46,6 +46,8 @@ def get_tasks(
             "Omit to return all tasks."
         ),
     ),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
@@ -56,15 +58,9 @@ def get_tasks(
     - `?status=active` → open + in_progress (shorthand for copilot use)
     - `?status=open`, `?status=done`, etc. → exact status match
     """
-    all_tasks = task_repository.get_all(db, user_id)
-
-    if status is None:
-        return all_tasks
-
-    if status == "active":
-        return [t for t in all_tasks if t.status in ("open", "in_progress")]
-
-    return [t for t in all_tasks if t.status == status]
+    return task_repository.get_all(
+        db, user_id, status=status, limit=limit, offset=offset
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────

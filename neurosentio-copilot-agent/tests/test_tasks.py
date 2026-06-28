@@ -135,3 +135,30 @@ def test_task_not_found():
         headers=HEADERS,
     )
     assert response.status_code == 404
+
+
+def test_tasks_pagination():
+    uid = "pagination-user"
+    headers = {"X-User-ID": uid, "Content-Type": "application/json"}
+
+    # Create 3 tasks
+    client.post("/tasks", json={"title": "Task 1", "priority": "low"}, headers=headers)
+    client.post("/tasks", json={"title": "Task 2", "priority": "medium"}, headers=headers)
+    client.post("/tasks", json={"title": "Task 3", "priority": "high"}, headers=headers)
+
+    # 1. Fetch with limit=2 (should return the 2 latest: Task 3, Task 2)
+    resp = client.get("/tasks?limit=2", headers=headers)
+    assert resp.status_code == 200
+    tasks = resp.json()
+    assert len(tasks) == 2
+    assert tasks[0]["title"] == "Task 3"
+    assert tasks[1]["title"] == "Task 2"
+
+    # 2. Fetch with limit=2 and offset=1 (should return Task 2, Task 1)
+    resp = client.get("/tasks?limit=2&offset=1", headers=headers)
+    assert resp.status_code == 200
+    tasks = resp.json()
+    assert len(tasks) == 2
+    assert tasks[0]["title"] == "Task 2"
+    assert tasks[1]["title"] == "Task 1"
+

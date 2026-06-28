@@ -9,7 +9,7 @@ POST   /transitions/{script_id}/used          → mark as used
 DELETE /transitions/{script_id}               → delete
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -54,10 +54,12 @@ def generate_transition(
     summary="List all transition scripts for the current user",
 )
 def list_transitions(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
-    return transition_script_repository.list_for_user(db, user_id)
+    return transition_script_repository.list_for_user(db, user_id, limit=limit, offset=offset)
 
 
 @router.get(

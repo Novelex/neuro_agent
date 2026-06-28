@@ -12,13 +12,29 @@ OPEN_STATUSES = ("open", "in_progress")
 
 class TaskRepository:
 
-    def get_all(self, db: Session, user_id: str) -> List[TaskModel]:
-        return (
-            db.query(TaskModel)
-            .filter(TaskModel.user_id == user_id)
-            .order_by(TaskModel.created_at.desc())
-            .all()
-        )
+    def get_all(
+        self,
+        db: Session,
+        user_id: str,
+        status: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> List[TaskModel]:
+        q = db.query(TaskModel).filter(TaskModel.user_id == user_id)
+
+        if status == "active":
+            q = q.filter(TaskModel.status.in_(OPEN_STATUSES))
+        elif status is not None:
+            q = q.filter(TaskModel.status == status)
+
+        q = q.order_by(TaskModel.created_at.desc())
+
+        if offset is not None:
+            q = q.offset(offset)
+        if limit is not None:
+            q = q.limit(limit)
+
+        return q.all()
 
     def get_open(self, db: Session, user_id: str) -> List[TaskModel]:
         return (
