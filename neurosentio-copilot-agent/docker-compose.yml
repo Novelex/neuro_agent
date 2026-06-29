@@ -1,4 +1,4 @@
-version: "3.9"
+
 
 services:
   copilot-agent:
@@ -9,8 +9,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount source for hot-reload in development
-      - .:/app
+      # Mount specific source directories for hot-reload in development to avoid 
+      # overwriting site-packages or exposing `.env` into the container
+      - ./app:/app/app
+      - ./alembic:/app/alembic
       # Persist the SQLite database file outside the container
       - neurosentio_db:/app/data
     environment:

@@ -1,0 +1,35 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+.venv/
+*.db
+
+# IDE
+.vscode/
+.idea/
+
+# Environment / Secrets
+.env
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+tests/
+
+# Reports and docs (not needed in image)
+reports/
+
+# Docker
+docker-compose.yml
+Dockerfile
+
+# Misc
+*.md

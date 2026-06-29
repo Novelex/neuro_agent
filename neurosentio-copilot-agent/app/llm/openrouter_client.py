@@ -26,10 +26,16 @@ class TokenBucketRateLimiter:
         self.capacity = capacity  # max tokens
         self.tokens = capacity
         self.last_update = time.monotonic()
-        self._lock = asyncio.Lock()
+        self._lock: Optional[asyncio.Lock] = None  # Lazily created for event-loop safety
+
+    def _get_lock(self) -> asyncio.Lock:
+        """Lazily create the lock on the current event loop."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     async def acquire(self):
-        async with self._lock:
+        async with self._get_lock():
             now = time.monotonic()
             elapsed = now - self.last_update
             self.last_update = now
@@ -54,10 +60,24 @@ class OpenRouterClient(BaseLLMClient):
     # Static rate limiter: limit requests to ~20 requests per minute to avoid 429 errors
     _rate_limiter = TokenBucketRateLimiter(rate=0.33, capacity=5.0)
 
+    # Reusable client instance (created once per OpenRouterClient instance)
+    _openai_client: Optional[object] = None
+
     def __init__(self, api_key: str, model: str, timeout: int = 30):
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
+
+    def _get_openai_client(self):
+        """Lazily create and reuse the AsyncOpenAI client."""
+        if self._openai_client is None:
+            from openai import AsyncOpenAI  # type: ignore
+            self._openai_client = AsyncOpenAI(
+                api_key=self._api_key,
+                base_url=self.OPENROUTER_BASE_URL,
+                timeout=self._timeout,
+            )
+        return self._openai_client
 
     async def _get_model_id(self) -> str:
         """Resolve model ID, dynamically checking for the cheapest model if 'auto' or 'lowest-cost'."""
@@ -121,28 +141,20 @@ class OpenRouterClient(BaseLLMClient):
         # Resolve model ID dynamically
         model_to_use = await self._get_model_id()
 
-        # Point the OpenAI SDK at OpenRouter's endpoint
-        client = AsyncOpenAI(
-            api_key=self._api_key,
-            base_url=self.OPENROUTER_BASE_URL,
-            timeout=self._timeout,
-        )
-
-        # Append a unique suffix to system prompt to guarantee a unique prompt hash (bypassing all caches)
-        unique_system_prompt = system_prompt + f"\n\n(System metadata tag to ensure request uniqueness: {time.time_ns()})"
+        # Reuse the AsyncOpenAI client (avoids connection churn)
+        client = self._get_openai_client()
 
         try:
             response = await client.chat.completions.create(
                 model=model_to_use,
                 response_format={"type": "json_object"},
                 messages=[
-                    {"role": "system", "content": unique_system_prompt},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 extra_headers={
                     "HTTP-Referer": "https://neurosentio.app",
                     "X-Title": "NeuroSentio Copilot Agent",
-                    "X-OpenRouter-Cache": "false",
                 },
             )
             raw = response.choices[0].message.content or "{}"

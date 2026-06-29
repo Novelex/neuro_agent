@@ -5,6 +5,7 @@ PATCH /micro-actions/{id}/status   → mark done, snooze, skip, defer
 POST  /micro-actions/{id}/make-smaller → split into smaller actions
 """
 
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -31,7 +32,7 @@ router = APIRouter(prefix="/micro-actions", tags=["MicroActions"])
     summary="Update micro-action status",
 )
 def update_micro_action_status(
-    micro_action_id: str,
+    micro_action_id: UUID,
     body: MicroActionStatusUpdate,
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
@@ -40,7 +41,7 @@ def update_micro_action_status(
     Update the status of a single micro-action.
     Allowed values: open, done, snoozed, skipped, deferred.
     """
-    updated = micro_action_repository.update_status(db, user_id, micro_action_id, body)
+    updated = micro_action_repository.update_status(db, user_id, str(micro_action_id), body)
     if not updated:
         raise HTTPException(status_code=404, detail="Micro-action not found")
     return updated
@@ -55,7 +56,7 @@ def update_micro_action_status(
     summary="Split a micro-action into smaller actions",
 )
 async def make_action_smaller(
-    micro_action_id: str,
+    micro_action_id: UUID,
     body: MakeSmallerRequest,
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
@@ -71,7 +72,7 @@ async def make_action_smaller(
         result = await make_micro_action_smaller(
             db=db,
             user_id=user_id,
-            micro_action_id=micro_action_id,
+            micro_action_id=str(micro_action_id),
             request=body,
         )
     except ValueError as exc:

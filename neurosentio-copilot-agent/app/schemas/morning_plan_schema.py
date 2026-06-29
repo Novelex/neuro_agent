@@ -56,7 +56,7 @@ class MorningPlan(BaseModel):
     plan_date: date
     mode: str                                 # normal | recovery
     summary: str
-    energy_used: int = 0                      # estimated total minutes
+    total_scheduled_minutes: int = 0          # estimated total minutes
     overload_risk_score: int = 0
     selected_micro_actions: List[PlannedMicroAction] = []
     recovery_blocks: List[RecoveryBlock] = []

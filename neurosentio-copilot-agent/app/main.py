@@ -35,10 +35,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS (wide open for local dev) ────────────────────────────────────
+# ── CORS ───────────────────────────────────────────────────────────────
+# In production, lock origins to configured CORS_ORIGINS allowlist.
+# In development, allow all origins for convenience.
+_cors_origins = settings.cors_origins if settings.is_production else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

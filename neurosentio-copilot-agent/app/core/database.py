@@ -12,28 +12,28 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from app.core.config import get_settings
 
-settings = get_settings()
+engine = None
+SessionLocal = None
 
-# SQLite requires check_same_thread=False for FastAPI's threaded access;
-# Postgres does not need (and rejects) this argument.
-connect_args = {"check_same_thread": False} if settings.is_sqlite else {}
-
-engine = create_engine(
-    settings.database_url,
-    connect_args=connect_args,
-    echo=settings.debug,
-)
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
+def _init_engine():
+    global engine, SessionLocal
+    if engine is None:
+        settings = get_settings()
+        connect_args = {"check_same_thread": False} if settings.is_sqlite else {}
+        engine = create_engine(
+            settings.database_url,
+            connect_args=connect_args,
+            echo=settings.debug,
+        )
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class Base(DeclarativeBase):
     """Declarative base for all ORM models."""
     pass
 
-
 def get_db():
     """FastAPI dependency: yields a database session and ensures it is closed."""
+    _init_engine()
     db = SessionLocal()
     try:
         yield db
@@ -49,4 +49,5 @@ def init_db():
     from app.models import calendar_event, overload_event  # noqa: F401
     from app.models import message_item, next_action_prompt, replan_event  # noqa: F401
     from app.models import privacy_preferences, privacy_audit_log  # noqa: F401
+    _init_engine()
     Base.metadata.create_all(bind=engine)

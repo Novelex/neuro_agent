@@ -14,7 +14,6 @@ Rules:
 - links selected micro-actions to plan_id
 """
 
-import asyncio
 import logging
 import uuid
 from datetime import date, datetime, timezone, time, timedelta
@@ -176,7 +175,7 @@ async def generate_morning_plan(
     """
     Main entry point for morning plan generation.
     """
-    plan_date = request.plan_date or date.today()
+    plan_date = request.plan_date or datetime.now(timezone.utc).date()
 
     # ── 1. Check for existing plan today (unless force_regenerate) ────
     existing_plan = copilot_repository.get_plan_for_date(db, user_id, plan_date)
@@ -484,7 +483,7 @@ async def generate_morning_plan(
         plan_date=plan_date,
         mode=mode,
         summary=_build_summary(mode, len(planned_items), energy_value),
-        energy_used=time_offset,
+        total_scheduled_minutes=time_offset,
         overload_risk_score=risk_score,
         selected_micro_actions=planned_items,
         recovery_blocks=recovery_blocks,
@@ -526,7 +525,7 @@ def _build_response_from_existing(
         plan_date=plan.plan_date,
         mode=plan.mode,
         summary=plan.summary or "",
-        energy_used=time_offset,
+        total_scheduled_minutes=time_offset,
         overload_risk_score=payload.get("overload_risk_score", 0),
         selected_micro_actions=planned_items,
         recovery_blocks=[],

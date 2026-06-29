@@ -17,6 +17,8 @@ class MicroAction(Base):
     user_id = Column(String, nullable=False, index=True)
 
     # Optional references (soft FK — not enforced at DB level for portability)
+    # WARNING: Because there are no Foreign Key constraints, there is a risk of orphaned data.
+    # The application layer (data_delete_service.py) is entirely responsible for cascading deletes.
     task_id = Column(String, nullable=True)
     plan_id = Column(String, nullable=True)
 

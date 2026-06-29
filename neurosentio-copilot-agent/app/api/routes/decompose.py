@@ -10,6 +10,7 @@ These are registered in main.py alongside the existing tasks router.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+from uuid import UUID
 
 from app.core.database import get_db
 from app.core.auth import get_current_user_id
@@ -33,7 +34,7 @@ router = APIRouter(tags=["Decomposition"])
     summary="Decompose a task into micro-actions",
 )
 async def decompose_task_endpoint(
-    task_id: str,
+    task_id: UUID,
     body: TaskDecomposeRequest,
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
@@ -51,7 +52,7 @@ async def decompose_task_endpoint(
         result = await decompose_task(
             db=db,
             user_id=user_id,
-            task_id=task_id,
+            task_id=str(task_id),
             request=body,
         )
     except ValueError as exc:
@@ -68,7 +69,7 @@ async def decompose_task_endpoint(
     summary="Get all micro-actions for a task",
 )
 def get_task_micro_actions(
-    task_id: str,
+    task_id: UUID,
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
@@ -76,4 +77,4 @@ def get_task_micro_actions(
     Returns all micro-actions for the given task, ordered by sort_order.
     Scoped to the current user — another user's tasks return an empty list.
     """
-    return micro_action_repository.get_by_task(db, user_id, task_id)
+    return micro_action_repository.get_by_task(db, user_id, str(task_id))

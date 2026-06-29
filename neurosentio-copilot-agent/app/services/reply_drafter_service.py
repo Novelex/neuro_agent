@@ -240,7 +240,7 @@ async def draft_reply(
             elif not include_boundary:
                 options = [o for o in options if o.type != "boundary"]
 
-        except (LLMError, ValueError, Exception) as exc:
+        except (LLMError, ValueError) as exc:
             latency_ms = int((time.monotonic() - t0) * 1000)
             logger.warning("LLM call failed for reply draft — using fallback. Reason: %s", exc)
             options = _build_fallback_options(

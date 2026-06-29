@@ -9,6 +9,7 @@ DELETE /tasks/{id}         → delete a task
 """
 
 from typing import List, Optional
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -101,7 +102,7 @@ def create_task(
 # ──────────────────────────────────────────────────────────────────────
 @router.patch("/{task_id}", response_model=Task, summary="Update task fields")
 def update_task(
-    task_id: str,
+    task_id: UUID,
     body: TaskUpdate,
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
@@ -116,7 +117,7 @@ def update_task(
     prefs = privacy_preferences_repository.get_or_create_default(db, user_id)
     if not prefs.store_task_descriptions and body.description is not None:
         body.description = None
-    task = task_repository.update(db, task_id, user_id, body)
+    task = task_repository.update(db, str(task_id), user_id, body)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
@@ -128,7 +129,7 @@ def update_task(
 # ──────────────────────────────────────────────────────────────────────
 @router.patch("/{task_id}/status", response_model=Task, summary="Update task status")
 def update_task_status(
-    task_id: str,
+    task_id: UUID,
     body: TaskStatusUpdate,
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
@@ -137,7 +138,7 @@ def update_task_status(
     Updates only the task status.
     Allowed values: open, in_progress, done, skipped, deferred.
     """
-    task = task_repository.update_status(db, task_id, user_id, body)
+    task = task_repository.update_status(db, str(task_id), user_id, body)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
@@ -148,19 +149,19 @@ def update_task_status(
 # ──────────────────────────────────────────────────────────────────────
 @router.delete("/{task_id}", status_code=204, summary="Delete a task")
 def delete_task(
-    task_id: str,
+    task_id: UUID,
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """Permanently deletes a task."""
-    deleted = task_repository.delete(db, task_id, user_id)
+    deleted = task_repository.delete(db, str(task_id), user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Task not found")
 
 
 @router.delete("/{task_id}/description", response_model=Task, summary="Purge/redact description from a task")
 def redact_task_description(
-    task_id: str,
+    task_id: UUID,
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
@@ -168,7 +169,7 @@ def redact_task_description(
     Purge the description field from a task, setting it to None.
     Saves an entry in the privacy audit log.
     """
-    task = task_repository.get_by_id(db, task_id, user_id)
+    task = task_repository.get_by_id(db, str(task_id), user_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
@@ -183,7 +184,7 @@ def redact_task_description(
         user_id=user_id,
         action_type="redact_field",
         target_type="task",
-        target_id=task_id,
+        target_id=str(task_id),
         extra_metadata={"field": "description"}
     )
     return task

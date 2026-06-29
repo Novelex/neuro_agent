@@ -18,7 +18,6 @@ Product principle:
 All generated language must be gentle, specific, non-shaming, and low-friction.
 """
 
-import asyncio
 import logging
 import time
 from typing import Optional, List
@@ -340,7 +339,7 @@ async def decompose_task(
             source = "mock" if client_class == "MockLLMClient" else "llm"
             llm_status = "success"
 
-        except (LLMError, ValueError, Exception) as exc:
+        except (LLMError, ValueError) as exc:
             latency_ms = int((time.monotonic() - t0) * 1000)
             logger.warning("LLM call failed — using fallback decomposition. Reason: %s", exc)
             actions, mode = _fallback_decompose(task.title, request.current_energy, request.max_actions)

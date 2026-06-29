@@ -6,6 +6,10 @@ from app.core.config import get_settings
 @pytest.fixture(autouse=True)
 def force_mock_llm_provider(monkeypatch):
     """Force mock LLM provider and default environment settings for all unit tests."""
+    # Clear the lru_cache to ensure we get fresh instances or clear it after we patch
+    get_llm_settings.cache_clear()
+    get_settings.cache_clear()
+
     # Override LLM settings
     llm_settings = get_llm_settings()
     monkeypatch.setattr(llm_settings, "llm_provider", "mock")
@@ -17,3 +21,9 @@ def force_mock_llm_provider(monkeypatch):
     app_settings = get_settings()
     monkeypatch.setattr(app_settings, "app_env", "testing")
     monkeypatch.setattr(app_settings, "auth_required", False)
+    
+    yield
+    
+    # Clear again after test to avoid bleeding state
+    get_llm_settings.cache_clear()
+    get_settings.cache_clear()

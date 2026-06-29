@@ -29,8 +29,15 @@ class PrivacyAuditRepository:
         db.refresh(audit_log)
         return audit_log
 
-    def get_audit_logs(self, db: Session, user_id: str) -> List[PrivacyAuditLog]:
-        return db.query(PrivacyAuditLog).filter(PrivacyAuditLog.user_id == user_id).order_by(PrivacyAuditLog.created_at.desc()).all()
+    def get_audit_logs(self, db: Session, user_id: str, limit: int = 50, offset: int = 0) -> List[PrivacyAuditLog]:
+        return (
+            db.query(PrivacyAuditLog)
+            .filter(PrivacyAuditLog.user_id == user_id)
+            .order_by(PrivacyAuditLog.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
 
     def delete_all_for_user(self, db: Session, user_id: str) -> int:
         """Deletes all audit logs for a user during a complete wipe."""

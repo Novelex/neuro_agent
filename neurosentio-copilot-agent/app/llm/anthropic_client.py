@@ -33,10 +33,11 @@ class AnthropicClient(BaseLLMClient):
                 "Run: pip install anthropic"
             )
 
-        client = anthropic.Anthropic(api_key=self._api_key)
+        # Use AsyncAnthropic to avoid blocking the event loop
+        client = anthropic.AsyncAnthropic(api_key=self._api_key)
 
         try:
-            message = client.messages.create(
+            message = await client.messages.create(
                 model=self._model,
                 max_tokens=2048,
                 system=system_prompt,
@@ -48,3 +49,4 @@ class AnthropicClient(BaseLLMClient):
             raise LLMError(f"Anthropic returned invalid JSON: {exc}") from exc
         except Exception as exc:
             raise LLMError(f"Anthropic call failed: {exc}") from exc
+

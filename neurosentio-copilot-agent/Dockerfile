@@ -26,12 +26,18 @@ COPY . .
 # Copy and configure entrypoint
 RUN chmod +x entrypoint.sh
 
+# Create data directory for SQLite persistence
+RUN mkdir -p /app/data
+
 # Expose FastAPI port
 EXPOSE 8000
+
+# Health check — verifies the API is responding
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Set entrypoint to run migrations automatically
 ENTRYPOINT ["/app/entrypoint.sh"]
 
 # Run the server (can be overridden in docker-compose.yml or Render/Koyeb)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-

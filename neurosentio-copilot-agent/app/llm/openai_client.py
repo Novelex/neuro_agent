@@ -6,15 +6,25 @@ Install: pip install openai
 """
 
 import json
+from typing import Optional
 from app.llm.base import BaseLLMClient, LLMError
 
 
 class OpenAIClient(BaseLLMClient):
 
+    _client: Optional[object] = None
+
     def __init__(self, api_key: str, model: str, timeout: int = 30):
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
+
+    def _get_client(self):
+        """Lazily create and reuse the AsyncOpenAI client."""
+        if self._client is None:
+            from openai import AsyncOpenAI  # type: ignore
+            self._client = AsyncOpenAI(api_key=self._api_key, timeout=self._timeout)
+        return self._client
 
     async def generate_json(
         self,
@@ -33,7 +43,7 @@ class OpenAIClient(BaseLLMClient):
                 "Run: pip install openai"
             )
 
-        client = AsyncOpenAI(api_key=self._api_key, timeout=self._timeout)
+        client = self._get_client()
 
         try:
             response = await client.chat.completions.create(
@@ -50,3 +60,4 @@ class OpenAIClient(BaseLLMClient):
             raise LLMError(f"OpenAI returned invalid JSON: {exc}") from exc
         except Exception as exc:
             raise LLMError(f"OpenAI call failed: {exc}") from exc
+

@@ -42,7 +42,7 @@ def replan_day(
     Adaptive replan. Returns a dict compatible with ReplanResult schema.
     """
     now = datetime.now(timezone.utc)
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
 
     # ── Determine mode ─────────────────────────────────────────────────
     current_energy = request.current_energy

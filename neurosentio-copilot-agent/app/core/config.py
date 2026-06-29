@@ -8,7 +8,7 @@ Supports development (SQLite + X-User-ID) and production (Postgres + JWT) modes.
 from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
 from functools import lru_cache
-from typing import Optional
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -21,16 +21,21 @@ class Settings(BaseSettings):
     # ── Environment ────────────────────────────────────────────────────
     app_env: str = "development"  # "development" | "production" | "testing"
 
+    # ── CORS ───────────────────────────────────────────────────────────
+    # In production, set CORS_ORIGINS to a comma-separated list of allowed origins.
+    # In development, CORS is wide open regardless of this setting.
+    cors_origins: List[str] = ["http://localhost:3000"]
+
     # ── Database ───────────────────────────────────────────────────────
     database_url: str = "sqlite:///./neurosentio.db"
     postgres_test_database_url: Optional[str] = None
     
     postgres_host: str = "localhost"
     postgres_port: int = 5432
-    postgres_db: str = "neurosentio_test"
-    postgres_user: str = "neurosentio"
-    postgres_password: str = "neurosentio"
-    postgres_database_url: str = "postgresql+psycopg://neurosentio:neurosentio@localhost:5432/neurosentio_test"
+    postgres_db: str = ""
+    postgres_user: str = ""
+    postgres_password: str = ""
+    postgres_database_url: str = ""
 
     def __init__(self, **values):
         super().__init__(**values)

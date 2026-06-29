@@ -82,6 +82,8 @@ def update_preferences(
     summary="Get privacy audit logs",
 )
 def get_audit_logs(
+    limit: int = Query(default=50, ge=1, le=200, description="Maximum number of logs to return"),
+    offset: int = Query(default=0, ge=0, description="Number of logs to skip"),
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
@@ -89,7 +91,7 @@ def get_audit_logs(
     Retrieve privacy audit logs for the current user in reverse chronological order.
     These logs only track metadata and actions (never sensitive text).
     """
-    return privacy_audit_repository.get_audit_logs(db, user_id)
+    return privacy_audit_repository.get_audit_logs(db, user_id, limit=limit, offset=offset)
 
 
 # ──────────────────────────────────────────────
