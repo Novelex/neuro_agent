@@ -26,7 +26,7 @@ class LLMSettings(BaseSettings):
     # Optional model defaults (used when llm_model is empty)
     anthropic_model: str = "claude-3-5-sonnet-latest"
     openai_model: str = "gpt-4o-mini"
-    openrouter_model: str = "deepseek/deepseek-chat-v3-0324"
+    openrouter_model: str = "google/gemini-2.0-flash-lite-preview-02-05:free"
 
     # ── Request behaviour ─────────────────────────────────────────────
     llm_timeout_seconds: int = 30
