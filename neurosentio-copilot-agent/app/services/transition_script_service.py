@@ -8,7 +8,7 @@ Currently uses rule-based fallback logic without DB ORM dependencies.
 import logging
 import uuid
 from typing import Optional, List
-from sqlalchemy.orm import Session
+from psycopg2.extensions import connection as Connection
 
 from app.core import supabase_queries as sq
 from app.schemas.transition_script_schema import (

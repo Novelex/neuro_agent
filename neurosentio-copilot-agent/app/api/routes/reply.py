@@ -9,7 +9,7 @@ IMPORTANT:
 """
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from psycopg2.extensions import connection as Connection
 
 from app.core.supabase_db import get_supabase_db as get_db
 from app.core.auth import get_current_user_id

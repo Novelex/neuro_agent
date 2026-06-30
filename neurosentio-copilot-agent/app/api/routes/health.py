@@ -1,8 +1,7 @@
 """GET /health — service health check with database connectivity verification."""
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import text
-from sqlalchemy.orm import Session
+from psycopg2.extensions import connection as Connection
 
 from app.core.supabase_db import get_supabase_db as get_db
 

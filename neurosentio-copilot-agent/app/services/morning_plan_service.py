@@ -10,7 +10,7 @@ import logging
 from datetime import date, datetime, timezone, time, timedelta
 from typing import Optional, List, Tuple, Dict, Any
 
-from sqlalchemy.orm import Session
+from psycopg2.extensions import connection as Connection
 
 from app.core import supabase_queries as sq
 from app.services.task_decomposer_service import decompose_task

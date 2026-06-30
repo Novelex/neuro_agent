@@ -19,7 +19,7 @@ import logging
 import time
 from typing import Optional, List, Dict, Any
 
-from sqlalchemy.orm import Session
+from psycopg2.extensions import connection as Connection
 
 from app.core import supabase_queries as sq
 from app.llm.base import BaseLLMClient, LLMError

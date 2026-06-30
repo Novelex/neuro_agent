@@ -11,7 +11,7 @@ If the user is rate-limited:
 """
 
 from typing import TypedDict, Optional
-from sqlalchemy.orm import Session
+from psycopg2.extensions import connection as Connection
 
 from app.core.llm_config import get_llm_settings
 from app.core import supabase_queries as sq

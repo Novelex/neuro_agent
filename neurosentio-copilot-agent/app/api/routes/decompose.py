@@ -8,7 +8,7 @@ These are registered in main.py alongside the existing tasks router.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from psycopg2.extensions import connection as Connection
 from typing import List
 from uuid import UUID
 

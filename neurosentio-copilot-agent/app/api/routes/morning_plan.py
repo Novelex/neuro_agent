@@ -6,7 +6,7 @@ GET  /copilot/morning-plan/today  → retrieve today's plan if it exists
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from psycopg2.extensions import connection as Connection
 from datetime import date
 
 from app.core.supabase_db import get_supabase_db as get_db

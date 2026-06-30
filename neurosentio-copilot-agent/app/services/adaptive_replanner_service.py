@@ -9,7 +9,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
-from sqlalchemy.orm import Session
+from psycopg2.extensions import connection as Connection
 
 from app.core import supabase_queries as sq
 from app.schemas.morning_plan_schema import PlannedMicroAction, RecoveryBlock
