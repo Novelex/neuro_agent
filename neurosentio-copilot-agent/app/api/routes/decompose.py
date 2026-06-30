@@ -7,6 +7,7 @@ GET  /tasks/{task_id}/micro-actions  → list micro-actions for a task
 These are registered in main.py alongside the existing tasks router.
 """
 
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg2.extensions import connection as Connection
 from typing import List

@@ -4,7 +4,8 @@ Adaptive Replanner routes.
 POST   /copilot/replan            → trigger an adaptive replan
 """
 
-from typing import Optional
+
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, Query
 from psycopg2.extensions import connection as Connection
 

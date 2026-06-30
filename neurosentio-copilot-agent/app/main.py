@@ -2,7 +2,9 @@
 NeuroSentio Copilot Agent — FastAPI application entry point.
 """
 
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI
+# pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
