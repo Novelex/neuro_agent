@@ -1,20 +1,17 @@
 """
-Transition Script Service (Day 6).
+Transition Script Service.
 
-Generates neurodivergent-friendly transition scripts using
-mock LLM (default) with fallback to rule-based templates.
-
-All generated language must be gentle, direct, and low-friction.
+Generates neurodivergent-friendly transition scripts.
+Currently uses rule-based fallback logic without DB ORM dependencies.
 """
 
 import logging
+import uuid
 from typing import Optional, List
 from sqlalchemy.orm import Session
 
-from app.repositories.transition_script_repository import transition_script_repository
+from app.core import supabase_queries as sq
 from app.schemas.transition_script_schema import (
-    TransitionScript as TransitionScriptSchema,
-    TransitionScriptCreate,
     TransitionScriptGenerateRequest,
     TransitionScriptGenerateResponse,
 )
@@ -78,23 +75,22 @@ _TEMPLATES: dict[str, dict] = {
         "steps_normal": [
             "Write: 'Tomorrow I start with...' — one sentence.",
             "Close any open tabs or documents.",
-            "Note one thing you completed today, however small.",
-            "Shut the computer or put work items away.",
-            "You are done for today.",
+            "Stand up. The day is done.",
         ],
         "steps_recovery": [
-            "Write tomorrow's first step in one sentence.",
-            "Close everything. You are done.",
+            "Close all tabs.",
+            "Stand up. Work is over.",
         ],
-        "message": "Today is complete. Tomorrow has one starting point.",
+        "message": "It is okay to stop now.",
     },
-    "context_switch": {
-        "title": "Switching context",
+    "switching_context": {
+        "title": "Switching tasks",
         "steps_normal": [
-            "Write: 'I was here. Next step is...' on a note.",
-            "Save and close current work.",
-            "Take a 2-minute pause before opening the next task.",
-            "Open only the next task — nothing else.",
+            "Write down where you left off on the old task.",
+            "Close its window.",
+            "Take one deep breath.",
+            "Write one sentence about what the new task needs first.",
+            "Open the new tool.",
         ],
         "steps_recovery": [
             "Write 'Start here next:' and one sentence.",
@@ -144,31 +140,19 @@ def _get_template_steps(
     key = "steps_recovery" if is_recovery else "steps_normal"
     steps = list(tmpl[key])
 
-    # Inject task title into starting_work / making_call where relevant
     if next_task_title:
         steps = [s.replace("[topic]", next_task_title) for s in steps]
 
     return steps[:max_steps]
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Public service function
-# ──────────────────────────────────────────────────────────────────────
-
 def generate_transition_script(
     db: Session,
     user_id: str,
     request: TransitionScriptGenerateRequest,
 ) -> TransitionScriptGenerateResponse:
-    """
-    Generates a transition script and persists it.
-
-    Currently rule-based (mock).
-    LLM integration is a Day 7 upgrade.
-    """
-    is_recovery = (
-        request.current_energy is not None and request.current_energy < 30
-    )
+    
+    is_recovery = request.current_energy is not None and request.current_energy < 30
     max_steps = min(request.max_steps, 3) if is_recovery else request.max_steps
 
     steps = _get_template_steps(
@@ -182,33 +166,22 @@ def generate_transition_script(
     title = tmpl["title"]
     message = tmpl["message"]
 
-    # Build context note
-    context_parts = []
-    if request.next_task_title:
-        context_parts.append(f"Task: {request.next_task_title}")
-    if request.context_note:
-        context_parts.append(request.context_note)
-    context = " | ".join(context_parts) if context_parts else None
-
-    # Persist
-    row = transition_script_repository.create(
-        db,
-        user_id,
-        TransitionScriptCreate(
-            transition_type=request.transition_type,
-            title=title,
-            script_steps=steps,
-            context=context,
-            tone="gentle",
-            source="mock",
-        ),
+    sq.save_transition_script(
+        db=db,
+        user_id=user_id,
+        transition_type=request.transition_type,
+        title=title,
+        steps=steps,
+        source="mock"
     )
+    
+    script_id = str(uuid.uuid4())
 
     return TransitionScriptGenerateResponse(
-        id=row.id,
-        transition_type=row.transition_type,
-        title=row.title,
-        script_steps=row.script_steps,
-        source=row.source,
+        id=script_id,
+        transition_type=request.transition_type,
+        title=title,
+        script_steps=steps,
+        source="mock",
         message=message,
     )

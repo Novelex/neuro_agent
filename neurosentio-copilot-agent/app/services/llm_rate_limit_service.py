@@ -14,7 +14,7 @@ from typing import TypedDict, Optional
 from sqlalchemy.orm import Session
 
 from app.core.llm_config import get_llm_settings
-from app.repositories.llm_usage_repository import llm_usage_repository
+from app.core import supabase_queries as sq
 
 
 class RateLimitResult(TypedDict):
@@ -37,8 +37,8 @@ def check_rate_limit(db: Session, user_id: str) -> RateLimitResult:
     daily_limit = settings.llm_daily_user_limit
     monthly_limit = settings.llm_monthly_user_limit
 
-    daily_used = llm_usage_repository.count_user_logs_today(db, user_id)
-    monthly_used = llm_usage_repository.count_user_logs_this_month(db, user_id)
+    daily_used = sq.count_user_logs_today(db, user_id)
+    monthly_used = sq.count_user_logs_this_month(db, user_id)
 
     if daily_used >= daily_limit:
         return RateLimitResult(
@@ -79,13 +79,11 @@ def log_rate_limit_skip(
     prompt_version: Optional[str] = None,
 ) -> None:
     """Record a skipped call in usage logs."""
-    llm_usage_repository.create_log(
+    sq.log_llm_usage(
         db=db,
         user_id=user_id,
         feature=feature,
         provider=provider,
+        model="",
         status="skipped_rate_limit",
-        prompt_version=prompt_version,
-        error_type=reason,
-        request_metadata={"reason": reason},
     )

@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     supabase_jwt_secret: Optional[str] = None
     supabase_jwks_url: Optional[str] = None
     supabase_jwt_audience: str = "authenticated"
+    supabase_database_url: Optional[str] = None
 
     @property
     def is_development(self) -> bool:

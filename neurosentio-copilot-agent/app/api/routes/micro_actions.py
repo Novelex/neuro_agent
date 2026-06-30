@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.supabase_db import get_supabase_db as get_db
 from app.core.auth import get_current_user_id
 from app.schemas.micro_action_schema import (
     MicroAction as MicroActionSchema,
@@ -17,7 +17,7 @@ from app.schemas.micro_action_schema import (
     MakeSmallerRequest,
     MakeSmallerResponse,
 )
-from app.repositories.micro_action_repository import micro_action_repository
+from app.core import supabase_queries as sq
 from app.services.task_decomposer_service import make_micro_action_smaller
 
 router = APIRouter(prefix="/micro-actions", tags=["MicroActions"])
@@ -41,10 +41,13 @@ def update_micro_action_status(
     Update the status of a single micro-action.
     Allowed values: open, done, snoozed, skipped, deferred.
     """
-    updated = micro_action_repository.update_status(db, user_id, str(micro_action_id), body)
-    if not updated:
+    existing = sq.get_micro_action_by_id(db, user_id, str(micro_action_id))
+    if not existing:
         raise HTTPException(status_code=404, detail="Micro-action not found")
-    return updated
+        
+    sq.set_micro_action_status(db, user_id, str(micro_action_id), body.status)
+    existing["status"] = body.status
+    return existing
 
 
 # ──────────────────────────────────────────────────────────────────────

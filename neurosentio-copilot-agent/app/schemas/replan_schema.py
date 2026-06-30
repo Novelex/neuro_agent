@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 
 from app.schemas.morning_plan_schema import PlannedMicroAction, RecoveryBlock
-from app.schemas.next_action_schema import NextActionPrompt
 
 
 ALLOWED_TRIGGER_TYPES = {
@@ -25,29 +24,10 @@ class ReplanRequest(BaseModel):
     include_urgent_messages: bool = True
 
 
-class ReplanEvent(BaseModel):
-    id: str
-    user_id: str
-    trigger_type: str
-    trigger_details: Optional[dict] = None
-    previous_plan_id: Optional[str] = None
-    new_plan_id: Optional[str] = None
-    mode_before: Optional[str] = None
-    mode_after: Optional[str] = None
-    actions_preserved_count: int = 0
-    actions_deferred_count: int = 0
-    actions_added_count: int = 0
-    summary: Optional[str] = None
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
 class ReplanResult(BaseModel):
-    event: ReplanEvent
+    event: Dict[str, Any]
     new_plan_id: Optional[str] = None
     summary: str
     selected_actions: List[PlannedMicroAction] = []
     deferred_actions_count: int = 0
     recovery_blocks: List[RecoveryBlock] = []
-    next_action: Optional[NextActionPrompt] = None

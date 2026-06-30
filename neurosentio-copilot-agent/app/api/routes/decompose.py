@@ -12,14 +12,14 @@ from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
 
-from app.core.database import get_db
+from app.core.supabase_db import get_supabase_db as get_db
 from app.core.auth import get_current_user_id
 from app.schemas.micro_action_schema import (
     MicroAction as MicroActionSchema,
     TaskDecomposeRequest,
     TaskDecomposeResponse,
 )
-from app.repositories.micro_action_repository import micro_action_repository
+from app.core import supabase_queries as sq
 from app.services.task_decomposer_service import decompose_task
 
 router = APIRouter(tags=["Decomposition"])
@@ -77,4 +77,4 @@ def get_task_micro_actions(
     Returns all micro-actions for the given task, ordered by sort_order.
     Scoped to the current user — another user's tasks return an empty list.
     """
-    return micro_action_repository.get_by_task(db, user_id, str(task_id))
+    return sq.get_micro_actions_for_task(db, user_id, str(task_id))

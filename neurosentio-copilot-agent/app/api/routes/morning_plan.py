@@ -9,12 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date
 
-from app.core.database import get_db
+from app.core.supabase_db import get_supabase_db as get_db
 from app.core.auth import get_current_user_id
 from app.schemas.morning_plan_schema import MorningPlan, MorningPlanRequest
+from app.core import supabase_queries as sq
 from app.services.morning_plan_service import generate_morning_plan
-from app.repositories.copilot_repository import copilot_repository
-from app.repositories.micro_action_repository import micro_action_repository
 
 router = APIRouter(prefix="/copilot", tags=["MorningPlan"])
 
@@ -56,13 +55,13 @@ async def get_today_morning_plan(
     Returns 404 if no plan exists for today — call POST /copilot/morning-plan to create one.
     """
     today = date.today()
-    plan_record = copilot_repository.get_plan_for_date(db, user_id, today)
+    plan_record = sq.get_today_morning_plan(db, user_id, today)
     if not plan_record:
         raise HTTPException(
             status_code=404,
             detail="No morning plan for today. Call POST /copilot/morning-plan to generate one.",
         )
-    linked_mas = micro_action_repository.get_open_by_plan(db, user_id, plan_record.id)
+    linked_mas = sq.get_plan_micro_actions(db, plan_record["id"])
     from app.services.morning_plan_service import _build_response_from_existing
     from app.schemas.morning_plan_schema import MorningPlanRequest
     return _build_response_from_existing(
