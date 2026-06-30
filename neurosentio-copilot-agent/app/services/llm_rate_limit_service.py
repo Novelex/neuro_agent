@@ -26,7 +26,7 @@ class RateLimitResult(TypedDict):
     monthly_limit: int
 
 
-def check_rate_limit(db: Session, user_id: str) -> RateLimitResult:
+def check_rate_limit(db: Connection, user_id: str) -> RateLimitResult:
     """
     Check whether this user can make an LLM call right now.
 
@@ -71,7 +71,7 @@ def check_rate_limit(db: Session, user_id: str) -> RateLimitResult:
 
 
 def log_rate_limit_skip(
-    db: Session,
+    db: Connection,
     user_id: str,
     feature: str,
     provider: str,

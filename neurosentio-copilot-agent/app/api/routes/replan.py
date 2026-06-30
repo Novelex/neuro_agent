@@ -28,7 +28,7 @@ router = APIRouter(prefix="/copilot/replan", tags=["Adaptive Replanner"])
 def trigger_replan(
     body: ReplanRequest,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Connection = Depends(get_db),
 ):
     """
     Adjusts the remaining day plan based on a trigger.

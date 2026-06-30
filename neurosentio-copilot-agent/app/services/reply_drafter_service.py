@@ -108,7 +108,7 @@ def _should_include_boundary(request: ReplyDraftRequest) -> bool:
 
 
 async def draft_reply(
-    db: Session,
+    db: Connection,
     user_id: str,
     request: ReplyDraftRequest,
     llm_client: Optional[BaseLLMClient] = None,

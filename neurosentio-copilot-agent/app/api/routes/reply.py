@@ -31,7 +31,7 @@ router = APIRouter(prefix="/reply", tags=["ReplyDrafter"])
 async def create_reply_draft(
     body: ReplyDraftRequest,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Connection = Depends(get_db),
 ):
     """
     Paste any message text and receive 3 neurodivergent-friendly reply options:

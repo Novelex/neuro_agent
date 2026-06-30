@@ -37,7 +37,7 @@ async def decompose_task_endpoint(
     task_id: UUID,
     body: TaskDecomposeRequest,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Connection = Depends(get_db),
 ):
     """
     Breaks a task into tiny, neurodivergent-friendly micro-actions.
@@ -71,7 +71,7 @@ async def decompose_task_endpoint(
 def get_task_micro_actions(
     task_id: UUID,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Connection = Depends(get_db),
 ):
     """
     Returns all micro-actions for the given task, ordered by sort_order.

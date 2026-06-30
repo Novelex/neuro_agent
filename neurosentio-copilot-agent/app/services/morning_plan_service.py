@@ -130,7 +130,7 @@ def _build_summary(mode: str, count: int, energy: Optional[int]) -> str:
 # ──────────────────────────────────────────────────────────────────────
 
 async def generate_morning_plan(
-    db: Session,
+    db: Connection,
     user_id: str,
     request: MorningPlanRequest,
 ) -> MorningPlan:

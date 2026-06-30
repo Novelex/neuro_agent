@@ -10,7 +10,7 @@ router = APIRouter(tags=["Health"])
 
 
 @router.get("/health", summary="Health check")
-def health_check(db: Session = Depends(get_db)):
+def health_check(db: Connection = Depends(get_db)):
     """
     Returns service status and verifies database connectivity.
     Returns 200 if healthy, includes db_status for monitoring.

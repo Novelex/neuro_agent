@@ -1,38 +1,48 @@
 """
 Direct Supabase connection for the AI Proxy Backend.
-Uses SQLAlchemy Core to execute raw SQL against the Supabase Postgres instance.
+Uses psycopg2 connection pooling directly to interact with Supabase Postgres.
 """
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from psycopg2.pool import ThreadedConnectionPool
+from contextlib import contextmanager
 from app.core.config import get_settings
+import logging
 
-engine = None
-SessionLocal = None
+logger = logging.getLogger(__name__)
 
-def _init_supabase_engine():
-    global engine, SessionLocal
-    if engine is None:
+_pool = None
+
+def _init_supabase_pool():
+    global _pool
+    if _pool is None:
         settings = get_settings()
-        
-        # Use SUPABASE_DATABASE_URL if available, fallback to DATABASE_URL
         db_url = getattr(settings, "supabase_database_url", settings.database_url)
         
-        engine = create_engine(
-            db_url,
-            # Connection pooling optimized for Supabase Pooler (port 6543)
-            pool_size=5,
-            max_overflow=10,
-            pool_pre_ping=True,
-            echo=settings.debug,
+        # If the local sqlite fallback is present, raise an error 
+        # (psycopg2 does not support sqlite).
+        if "sqlite" in db_url:
+            raise ValueError("SQLite is not supported. Please configure SUPABASE_DATABASE_URL with a PostgreSQL connection string.")
+            
+        logger.info("Initializing ThreadedConnectionPool for PostgreSQL...")
+        
+        # Connection pooling optimized for Supabase Pooler
+        _pool = ThreadedConnectionPool(
+            minconn=1,
+            maxconn=10,
+            dsn=db_url,
         )
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+@contextmanager
+def get_db_connection():
+    """Yields a psycopg2 database connection from the pool."""
+    _init_supabase_pool()
+    conn = _pool.getconn()
+    try:
+        yield conn
+    finally:
+        _pool.putconn(conn)
 
 def get_supabase_db():
-    """FastAPI dependency: yields a Supabase database session."""
-    _init_supabase_engine()
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    """FastAPI dependency: yields a psycopg2 database connection."""
+    with get_db_connection() as conn:
+        yield conn

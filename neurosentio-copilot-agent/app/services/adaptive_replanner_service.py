@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def replan_day(
-    db: Session,
+    db: Connection,
     user_id: str,
     request: ReplanRequest,
 ) -> Dict[str, Any]:

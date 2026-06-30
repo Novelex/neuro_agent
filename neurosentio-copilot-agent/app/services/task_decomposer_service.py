@@ -204,7 +204,7 @@ def _parse_llm_output(raw: dict, max_actions: int) -> List[Dict[str, Any]]:
     return result
 
 async def decompose_task(
-    db: Session,
+    db: Connection,
     user_id: str,
     task_id: str,
     request: TaskDecomposeRequest,
@@ -313,7 +313,7 @@ async def decompose_task(
 
 
 async def make_micro_action_smaller(
-    db: Session,
+    db: Connection,
     user_id: str,
     micro_action_id: str,
     request: MakeSmallerRequest,

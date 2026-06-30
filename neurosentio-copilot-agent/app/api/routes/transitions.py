@@ -26,7 +26,7 @@ router = APIRouter(prefix="/transitions", tags=["Transitions"])
 def generate_transition(
     body: TransitionScriptGenerateRequest,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Connection = Depends(get_db),
 ):
     """
     Generates a gentle, neurodivergent-friendly transition script.

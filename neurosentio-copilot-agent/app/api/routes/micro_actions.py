@@ -35,7 +35,7 @@ def update_micro_action_status(
     micro_action_id: UUID,
     body: MicroActionStatusUpdate,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Connection = Depends(get_db),
 ):
     """
     Update the status of a single micro-action.
@@ -62,7 +62,7 @@ async def make_action_smaller(
     micro_action_id: UUID,
     body: MakeSmallerRequest,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Connection = Depends(get_db),
 ):
     """
     This action still feels too big.

@@ -26,7 +26,7 @@ router = APIRouter(prefix="/copilot", tags=["MorningPlan"])
 async def create_morning_plan(
     body: MorningPlanRequest,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Connection = Depends(get_db),
 ):
     """
     Generates a neurodivergent-friendly morning plan.
@@ -48,7 +48,7 @@ async def create_morning_plan(
 )
 async def get_today_morning_plan(
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: Connection = Depends(get_db),
 ):
     """
     Returns today's morning plan if one has been generated.

@@ -147,7 +147,7 @@ def _get_template_steps(
 
 
 def generate_transition_script(
-    db: Session,
+    db: Connection,
     user_id: str,
     request: TransitionScriptGenerateRequest,
 ) -> TransitionScriptGenerateResponse:

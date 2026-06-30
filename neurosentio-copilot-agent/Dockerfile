@@ -23,12 +23,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source and scripts
 COPY . .
 
-# Copy and configure entrypoint
-RUN chmod +x entrypoint.sh
-
-# Create data directory for SQLite persistence
-RUN mkdir -p /app/data
-
 # Expose FastAPI port
 EXPOSE 8000
 
@@ -36,8 +30,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Set entrypoint to run migrations automatically
-ENTRYPOINT ["/app/entrypoint.sh"]
-
-# Run the server (can be overridden in docker-compose.yml or Render/Koyeb)
+# Run the server
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
