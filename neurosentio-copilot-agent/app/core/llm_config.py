@@ -16,16 +16,12 @@ class LLMSettings(BaseSettings):
     llm_provider: str = "mock"
 
     # API keys — intentionally empty by default so the app runs key-free
-    anthropic_api_key: str = ""
-    openai_api_key: str = ""
     openrouter_api_key: str = ""
 
     # Model name — if empty, services use sensible defaults
     llm_model: str = ""
 
     # Optional model defaults (used when llm_model is empty)
-    anthropic_model: str = "claude-3-5-sonnet-latest"
-    openai_model: str = "gpt-4o-mini"
     openrouter_model: str = "google/gemini-2.0-flash-lite-preview-02-05:free"
 
     # ── Request behaviour ─────────────────────────────────────────────

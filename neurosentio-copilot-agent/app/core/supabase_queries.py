@@ -18,7 +18,7 @@ def get_open_tasks(conn: Connection, user_id: str) -> List[Dict[str, Any]]:
     """Fetch incomplete tasks from planner_tasks."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute('''
-            SELECT id, title, subtitle, time, date, isCompleted 
+            SELECT id, title, subtitle, time, date, created_at, isCompleted 
             FROM public.planner_tasks 
             WHERE user_id = %(uid)s AND "isCompleted" = false
             ORDER BY created_at DESC
@@ -48,6 +48,18 @@ def get_latest_energy_level(conn: Connection, user_id: str) -> Optional[int]:
         ''', {"uid": user_id})
         result = cur.fetchone()
         return result[0] * 10 if result else None
+
+def get_energy_logs_for_last_7_days(conn: Connection, user_id: str) -> List[Dict[str, Any]]:
+    """Fetch all energy logs for the last 7 days."""
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute('''
+            SELECT id, level, timestamp
+            FROM public.energy_logs
+            WHERE user_id = %(uid)s 
+            AND timestamp >= NOW() - INTERVAL '7 days'
+            ORDER BY timestamp ASC
+        ''', {"uid": user_id})
+        return [dict(row) for row in cur.fetchall()]
 
 def get_user_settings(conn: Connection, user_id: str) -> Optional[Dict[str, Any]]:
     """Fetch user settings (tags, panic message)."""
@@ -149,6 +161,16 @@ def save_morning_plan(conn: Connection, user_id: str, plan_date: date, mode: str
     conn.commit()
     return str(plan_id)
 
+def set_morning_plan_recovery_mode(conn: Connection, user_id: str, plan_date: date) -> None:
+    """Sets today's morning plan mode to recovery and increases risk score."""
+    with conn.cursor() as cur:
+        cur.execute('''
+            UPDATE public.ai_morning_plans
+            SET mode = 'recovery', overload_risk_score = overload_risk_score + 10
+            WHERE user_id = %(uid)s AND plan_date = %(pdate)s
+        ''', {"uid": user_id, "pdate": plan_date})
+    conn.commit()
+
 def get_today_morning_plan(conn: Connection, user_id: str, plan_date: date) -> Optional[Dict[str, Any]]:
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute('''
@@ -158,6 +180,50 @@ def get_today_morning_plan(conn: Connection, user_id: str, plan_date: date) -> O
         ''', {"uid": user_id, "pdate": plan_date})
         result = cur.fetchone()
         return dict(result) if result else None
+
+def get_failed_task_count_last_24h(conn: Connection, user_id: str) -> int:
+    """Count deferred or snoozed micro-actions in the last 24 hours."""
+    with conn.cursor() as cur:
+        cur.execute('''
+            SELECT COUNT(*)
+            FROM public.ai_micro_actions
+            WHERE user_id = %(uid)s
+            AND status IN ('deferred', 'snoozed')
+            AND created_at >= NOW() - INTERVAL '1 day'
+        ''', {"uid": user_id})
+        result = cur.fetchone()
+        return result[0] if result else 0
+
+def get_next_open_micro_action(conn: Connection, user_id: str, exclude_high_energy: bool = False) -> Optional[Dict[str, Any]]:
+    """Fetch the single next open micro-action for the user, ordered by sort_order."""
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        query = '''
+            SELECT id, title, description, duration_minutes, energy_cost, status, sort_order, task_id
+            FROM public.ai_micro_actions
+            WHERE user_id = %(uid)s AND status = 'open'
+        '''
+        if exclude_high_energy:
+            query += " AND energy_cost != 'high'"
+            
+        query += " ORDER BY sort_order ASC LIMIT 1"
+        
+        cur.execute(query, {"uid": user_id})
+        result = cur.fetchone()
+        return dict(result) if result else None
+
+def snooze_high_energy_micro_actions(conn: Connection, user_id: str) -> int:
+    """Snooze all open high-energy micro actions for the user."""
+    with conn.cursor() as cur:
+        cur.execute('''
+            UPDATE public.ai_micro_actions
+            SET status = 'snoozed'
+            WHERE user_id = %(uid)s 
+            AND status = 'open' 
+            AND energy_cost = 'high'
+        ''', {"uid": user_id})
+        count = cur.rowcount
+    conn.commit()
+    return count
 
 def get_plan_micro_actions(conn: Connection, plan_id: str) -> List[Dict[str, Any]]:
     with conn.cursor(cursor_factory=RealDictCursor) as cur:

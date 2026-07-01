@@ -15,7 +15,12 @@ from app.api.routes import (
     morning_plan,
     transitions,
     reply,
-    replan
+    replan,
+    task_aggregator,
+    context_energy,
+    overload_detector,
+    next_action,
+    recovery_mode
 )
 
 settings = get_settings()
@@ -50,3 +55,8 @@ app.include_router(morning_plan.router)    # POST /copilot/morning-plan
 app.include_router(transitions.router)     # POST /transitions/generate
 app.include_router(reply.router)           # POST /reply/draft
 app.include_router(replan.router)          # POST /copilot/replan
+app.include_router(task_aggregator.router) # GET /context/tasks/analysis
+app.include_router(context_energy.router)  # GET /context/energy/trend
+app.include_router(overload_detector.router) # POST /copilot/detect-overload
+app.include_router(next_action.router)       # GET /micro-actions/next-action
+app.include_router(recovery_mode.router)     # POST /copilot/activate-recovery

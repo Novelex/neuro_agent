@@ -28,14 +28,7 @@ class Settings(BaseSettings):
 
     # ── Database ───────────────────────────────────────────────────────
     database_url: str = "sqlite:///./neurosentio.db"
-    postgres_test_database_url: Optional[str] = None
-    
-    postgres_host: str = "localhost"
-    postgres_port: int = 5432
-    postgres_db: str = ""
-    postgres_user: str = ""
-    postgres_password: str = ""
-    postgres_database_url: str = ""
+
 
     def __init__(self, **values):
         super().__init__(**values)
@@ -44,8 +37,6 @@ class Settings(BaseSettings):
         except ImportError:
             try:
                 import psycopg2  # type: ignore
-                if self.postgres_database_url.startswith("postgresql+psycopg://"):
-                    self.postgres_database_url = self.postgres_database_url.replace("postgresql+psycopg://", "postgresql+psycopg2://")
                 if self.database_url.startswith("postgresql+psycopg://"):
                     self.database_url = self.database_url.replace("postgresql+psycopg://", "postgresql+psycopg2://")
             except ImportError:
@@ -60,7 +51,6 @@ class Settings(BaseSettings):
     auth_required: bool = False
     supabase_url: Optional[str] = None
     supabase_jwt_secret: Optional[str] = None
-    supabase_jwks_url: Optional[str] = None
     supabase_jwt_audience: str = "authenticated"
     supabase_database_url: Optional[str] = None
 

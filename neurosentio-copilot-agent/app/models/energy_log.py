@@ -1,28 +1,26 @@
-"""EnergyLog ORM model."""
+"""Energy log data model."""
+
+from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Text, DateTime
-from app.core.database import Base
+from typing import Optional
 
 
-def _now():
+def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class EnergyLog(Base):
-    __tablename__ = "energy_logs"
-
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, nullable=False, index=True)
-
-    # 0–100
-    battery_level = Column(Integer, nullable=False)
-    note = Column(Text, nullable=True)
+@dataclass(slots=True)
+class EnergyLog:
+    user_id: str
+    battery_level: int
+    note: Optional[str] = None
 
     # Allowed: calm, okay, overstimulated, shutdown, anxious, unknown
-    sensory_state = Column(String, nullable=False, default="unknown")
-
-    mood = Column(String, nullable=True)
-    logged_at = Column(DateTime(timezone=True), nullable=False, default=_now)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+    sensory_state: str = "unknown"
+    mood: Optional[str] = None
+    logged_at: datetime = field(default_factory=_now)
+    created_at: datetime = field(default_factory=_now)
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))

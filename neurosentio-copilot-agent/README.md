@@ -785,7 +785,7 @@ This pack adds robust, enterprise-grade capabilities to support real LLM provide
    - [scripts/check_postgres_migrations.py](file:///c:/Users/daniy/Downloads/neuro_agent/neurosentio-copilot-agent/scripts/check_postgres_migrations.py) maps `POSTGRES_DATABASE_URL` to `DATABASE_URL` for Alembic, wipes the schema, programmatically migrates to head, and queries `information_schema.columns` to verify native `json` and `timestamp` column types.
    - Includes a strict safety guard refusing schema wipes unless the DB name contains `"test"` or the `--allow-non-test-db` flag is explicitly provided.
 3. **PostgreSQL Reserved Keywords & CRUD Check**:
-   - Verifies SQLAlchemy's ability to cleanly quote and handle metadata-like fields (such as `detected_keywords`, `extra_metadata`, `raw_metadata`, `request_metadata`) on `message_items`, `calendar_events`, `llm_usage_logs`, and `next_action_prompts` tables.
+   - Verifies PostgreSQL-compatible handling of metadata-like fields (such as `detected_keywords`, `extra_metadata`, `raw_metadata`, and `request_metadata`) on `message_items`, `calendar_events`, `llm_usage_logs`, and `next_action_prompts` tables.
 4. **Live-Server HTTP E2E on Postgres**:
    - [scripts/e2e_postgres_live_server.py](file:///c:/Users/daniy/Downloads/neuro_agent/neurosentio-copilot-agent/scripts/e2e_postgres_live_server.py) executes a real multi-step workflow via HTTP requests against a live FastAPI server running in Postgres mode.
 5. **Opt-In Pytest Support**:
