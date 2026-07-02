@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     cors_origins: List[str] = ["http://localhost:3000"]
 
     # ── Database ───────────────────────────────────────────────────────
-    database_url: str = "sqlite:///./neurosentio.db"
+    database_url: Optional[str] = None
 
 
     def __init__(self, **values):

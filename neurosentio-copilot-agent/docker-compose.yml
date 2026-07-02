@@ -12,34 +12,8 @@ services:
       # Mount specific source directories for hot-reload in development to avoid 
       # overwriting site-packages or exposing `.env` into the container
       - ./app:/app/app
-      - ./alembic:/app/alembic
-      # Persist the SQLite database file outside the container
-      - neurosentio_db:/app/data
     environment:
-      - DATABASE_URL=sqlite:////app/data/neurosentio.db
       - DEBUG=true
       - DEFAULT_USER_ID=demo-user
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     restart: unless-stopped
-
-  postgres:
-    image: postgres:16
-    container_name: neurosentio-postgres-test
-    environment:
-      POSTGRES_DB: neurosentio_test
-      POSTGRES_USER: neurosentio
-      POSTGRES_PASSWORD: neurosentio
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U neurosentio -d neurosentio_test"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-volumes:
-  neurosentio_db:
-  postgres_data:
