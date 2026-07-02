@@ -18,6 +18,9 @@ def _init_supabase_pool():
         settings = get_settings()
         db_url = getattr(settings, "supabase_database_url", settings.database_url)
         
+        if db_url is None:
+            raise ValueError("Database URL is missing. Please set DATABASE_URL or SUPABASE_DATABASE_URL environment variable.")
+
         # If the local sqlite fallback is present, raise an error 
         # (psycopg2 does not support sqlite).
         if "sqlite" in db_url:
