@@ -37,7 +37,7 @@ class Settings(BaseSettings):
         except ImportError:
             try:
                 import psycopg2  # type: ignore
-                if self.database_url.startswith("postgresql+psycopg://"):
+                if self.database_url and self.database_url.startswith("postgresql+psycopg://"):
                     self.database_url = self.database_url.replace("postgresql+psycopg://", "postgresql+psycopg2://")
             except ImportError:
                 pass
