@@ -16,8 +16,9 @@ def health_check(db: Connection = Depends(get_db)):
     """
     db_status = "ok"
     try:
-        db.execute(text("SELECT 1"))
-    except Exception:
+        with db.cursor() as cursor:
+            cursor.execute("SELECT 1")
+    except Exception as e:
         db_status = "unreachable"
 
     status = "ok" if db_status == "ok" else "degraded"
