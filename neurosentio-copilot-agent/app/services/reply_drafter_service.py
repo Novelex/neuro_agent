@@ -123,42 +123,45 @@ async def draft_reply(
     safety = detect_prompt_injection_risk(request.original_message)
     injection_detected = safety["risk_detected"]
 
-    if llm_client is None:
-        llm_client = get_llm_client()
-
-    client_class = llm_client.__class__.__name__
-    provider = "mock" if client_class == "MockLLMClient" else client_class.lower().replace("client", "")
-    from app.core.llm_config import get_llm_settings
-    llm_settings = get_llm_settings()
-    model = llm_settings.llm_model or None
-
-    rate_result = check_rate_limit(db, user_id)
-    source = "mock"
+    source = "llm"
     options: List[ReplyDraftOption] = []
     llm_status = "success"
     error_type = None
     latency_ms = None
+    provider = "unknown"
+    model = ""
 
-    if not rate_result["allowed"]:
-        logger.warning("Rate limit exceeded for user %s: %s", user_id, rate_result["reason"])
-        sq.log_llm_usage(
-            db=db, user_id=user_id, feature="reply_drafting",
-            provider=provider, model=model or "", status="rate_limited",
-        )
-        options = _build_fallback_options(
-            intent=request.user_intent,
-            include_boundary=include_boundary,
-            is_low_energy=is_low_energy,
-        )
-        source = "fallback"
-        llm_status = "skipped_rate_limit"
-    else:
-        user_prompt = _build_user_prompt(request, profile_tone)
-        if injection_detected:
-            user_prompt = build_safety_prefix(safety["risk_terms"]) + user_prompt
+    from app.core.llm_config import get_llm_settings
+    llm_settings = get_llm_settings()
+    model = llm_settings.llm_model or ""
 
-        t0 = time.monotonic()
-        try:
+    t0 = time.monotonic()
+    try:
+        if llm_client is None:
+            llm_client = get_llm_client()
+
+        client_class = llm_client.__class__.__name__
+        provider = client_class.lower().replace("client", "")
+
+        rate_result = check_rate_limit(db, user_id)
+        if not rate_result["allowed"]:
+            logger.warning("Rate limit exceeded for user %s: %s", user_id, rate_result["reason"])
+            sq.log_llm_usage(
+                db=db, user_id=user_id, feature="reply_drafting",
+                provider=provider, model=model or "", status="rate_limited",
+            )
+            options = _build_fallback_options(
+                intent=request.user_intent,
+                include_boundary=include_boundary,
+                is_low_energy=is_low_energy,
+            )
+            source = "fallback"
+            llm_status = "skipped_rate_limit"
+        else:
+            user_prompt = _build_user_prompt(request, profile_tone)
+            if injection_detected:
+                user_prompt = build_safety_prefix(safety["risk_terms"]) + user_prompt
+
             raw = await llm_client.generate_json(
                 system_prompt=SYSTEM_PROMPT,
                 user_prompt=user_prompt,
@@ -167,7 +170,7 @@ async def draft_reply(
             latency_ms = int((time.monotonic() - t0) * 1000)
             validated = ReplyDraftLLMOutput.model_validate(raw)
             options = validated.draft_options
-            source = "mock" if client_class == "MockLLMClient" else "llm"
+            source = "llm"
             llm_status = "success"
 
             boundary_in_options = any(o.type == "boundary" for o in options)
@@ -184,24 +187,24 @@ async def draft_reply(
             elif not include_boundary:
                 options = [o for o in options if o.type != "boundary"]
 
-        except (LLMError, ValueError) as exc:
-            latency_ms = int((time.monotonic() - t0) * 1000)
-            logger.warning("LLM call failed for reply draft — using fallback. Reason: %s", exc)
-            options = _build_fallback_options(
-                intent=request.user_intent,
-                include_boundary=include_boundary,
-                is_low_energy=is_low_energy,
-            )
-            source = "fallback"
-            llm_status = "fallback"
-            error_type = type(exc).__name__
-
-        cost = estimate_llm_cost(provider, model, None, None) 
-        sq.log_llm_usage(
-            db=db, user_id=user_id, feature="reply_drafting",
-            provider=provider, model=model or "", status=llm_status,
-            latency_ms=latency_ms, cost=cost
+    except (LLMError, ValueError) as exc:
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        logger.warning("LLM setup or call failed for reply draft — using fallback. Reason: %s", exc)
+        options = _build_fallback_options(
+            intent=request.user_intent,
+            include_boundary=include_boundary,
+            is_low_energy=is_low_energy,
         )
+        source = "fallback"
+        llm_status = "fallback"
+        error_type = type(exc).__name__
+
+    cost = estimate_llm_cost(provider, model, None, None) 
+    sq.log_llm_usage(
+        db=db, user_id=user_id, feature="reply_drafting",
+        provider=provider, model=model or "", status=llm_status,
+        latency_ms=latency_ms, cost=cost
+    )
 
     # ── 9. Persist draft ────────────────────────────────────────────────
     stored_original = request.original_message

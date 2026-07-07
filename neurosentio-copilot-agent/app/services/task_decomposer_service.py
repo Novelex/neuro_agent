@@ -231,8 +231,18 @@ async def decompose_task(
         sq.delete_open_micro_actions_for_task(db, user_id, task_id)
 
     # ── 4. Build prompts ──────────────────────────────────────────────
-    if llm_client is None:
-        llm_client = get_llm_client()
+    source = "llm"
+    actions: List[Dict[str, Any]] = []
+    mode = _infer_mode(request.current_energy)
+    llm_status = "success"
+    error_type = None
+    latency_ms = None
+    provider = "unknown"
+    model = ""
+    
+    from app.core.llm_config import get_llm_settings
+    settings = get_llm_settings()
+    model = settings.llm_model or ""
 
     user_prompt = _build_user_prompt(
         task=task,
@@ -241,32 +251,25 @@ async def decompose_task(
         max_actions=request.max_actions,
     )
 
-    source = "llm"
-    actions: List[Dict[str, Any]] = []
-    mode = _infer_mode(request.current_energy)
-    llm_status = "success"
-    error_type = None
-    latency_ms = None
+    t0 = time.monotonic()
+    try:
+        if llm_client is None:
+            llm_client = get_llm_client()
+            
+        client_class = llm_client.__class__.__name__
+        provider = client_class.lower().replace("client", "")
 
-    client_class = llm_client.__class__.__name__
-    provider = "mock" if client_class == "MockLLMClient" else client_class.lower().replace("client", "")
-    from app.core.llm_config import get_llm_settings
-    settings = get_llm_settings()
-    model = settings.llm_model or None
-
-    rate_result = check_rate_limit(db, user_id)
-    if not rate_result["allowed"]:
-        logger.warning("Rate limit exceeded for user %s: %s", user_id, rate_result["reason"])
-        sq.log_llm_usage(
-            db=db, user_id=user_id, feature="task_decomposition",
-            provider=provider, model=model or "", status="rate_limited",
-        )
-        actions, mode = _fallback_decompose(task["title"], request.current_energy, request.max_actions)
-        source = "fallback"
-        llm_status = "skipped_rate_limit"
-    else:
-        t0 = time.monotonic()
-        try:
+        rate_result = check_rate_limit(db, user_id)
+        if not rate_result["allowed"]:
+            logger.warning("Rate limit exceeded for user %s: %s", user_id, rate_result["reason"])
+            sq.log_llm_usage(
+                db=db, user_id=user_id, feature="task_decomposition",
+                provider=provider, model=model or "", status="rate_limited",
+            )
+            actions, mode = _fallback_decompose(task["title"], request.current_energy, request.max_actions)
+            source = "fallback"
+            llm_status = "skipped_rate_limit"
+        else:
             raw = await llm_client.generate_json(
                 system_prompt=SYSTEM_PROMPT,
                 user_prompt=user_prompt,
@@ -274,23 +277,23 @@ async def decompose_task(
             )
             latency_ms = int((time.monotonic() - t0) * 1000)
             actions = _parse_llm_output(raw, request.max_actions)
-            source = "mock" if client_class == "MockLLMClient" else "llm"
+            source = "llm"
             llm_status = "success"
 
-        except (LLMError, ValueError) as exc:
-            latency_ms = int((time.monotonic() - t0) * 1000)
-            logger.warning("LLM call failed — using fallback decomposition. Reason: %s", exc)
-            actions, mode = _fallback_decompose(task["title"], request.current_energy, request.max_actions)
-            source = "fallback"
-            llm_status = "fallback"
-            error_type = type(exc).__name__
+    except (LLMError, ValueError) as exc:
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        logger.warning("LLM setup or call failed — using fallback decomposition. Reason: %s", exc)
+        actions, mode = _fallback_decompose(task["title"], request.current_energy, request.max_actions)
+        source = "fallback"
+        llm_status = "fallback"
+        error_type = type(exc).__name__
 
-        cost = estimate_llm_cost(provider, model, None, None)
-        sq.log_llm_usage(
-            db=db, user_id=user_id, feature="task_decomposition",
-            provider=provider, model=model or "", status=llm_status,
-            latency_ms=latency_ms, cost=cost
-        )
+    cost = estimate_llm_cost(provider, model, None, None)
+    sq.log_llm_usage(
+        db=db, user_id=user_id, feature="task_decomposition",
+        provider=provider, model=model or "", status=llm_status,
+        latency_ms=latency_ms, cost=cost
+    )
 
     # ── 6. Persist ────────────────────────────────────────────────────
     sq.save_micro_actions(db, user_id, task_id, None, actions)

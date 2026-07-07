@@ -45,12 +45,12 @@ async def analyze_task_patterns(db: Connection, user_id: str) -> TaskAggregatorR
         )
     
     # Use LLM to analyze patterns
-    client = get_llm_client()
     system_prompt = aggregator_prompts.SYSTEM_PROMPT
     user_prompt = aggregator_prompts.build_user_prompt(stuck_tasks_data)
     
     # We use our standard generate_json wrapper
     try:
+        client = get_llm_client()
         response_json = await client.generate_json(
             system_prompt=system_prompt,
             user_prompt=user_prompt
