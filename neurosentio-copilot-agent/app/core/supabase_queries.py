@@ -20,7 +20,7 @@ def get_open_tasks(conn: Connection, user_id: str) -> List[Dict[str, Any]]:
         cur.execute('''
             SELECT id, title, subtitle, time, date, created_at, isCompleted 
             FROM public.planner_tasks 
-            WHERE user_id = %(uid)s AND "isCompleted" = false
+            WHERE user_id = %(uid)s AND iscompleted = false
             ORDER BY created_at DESC
         ''', {"uid": user_id})
         return [dict(row) for row in cur.fetchall()]
@@ -29,7 +29,7 @@ def get_task(conn: Connection, user_id: str, task_id: str) -> Optional[Dict[str,
     """Fetch a single task by ID."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute('''
-            SELECT id, title, subtitle, time, date, isCompleted 
+            SELECT id, title, subtitle, time, date, iscompleted 
             FROM public.planner_tasks 
             WHERE user_id = %(uid)s AND id = %(tid)s
         ''', {"uid": user_id, "tid": task_id})
@@ -144,19 +144,35 @@ def save_micro_actions(conn: Connection, user_id: str, task_id: Optional[str], p
 def save_morning_plan(conn: Connection, user_id: str, plan_date: date, mode: str, summary: str, message: str, total_minutes: int, risk_score: int) -> str:
     """Save a morning plan and return its ID."""
     with conn.cursor() as cur:
+        # Check if plan already exists for today
         cur.execute('''
-            INSERT INTO public.ai_morning_plans 
-            (user_id, plan_date, mode, summary, message, total_scheduled_minutes, overload_risk_score) 
-            VALUES (%(uid)s, %(pdate)s, %(mode)s, %(sum)s, %(msg)s, %(mins)s, %(risk)s)
-            ON CONFLICT (user_id, plan_date) 
-            DO UPDATE SET mode = EXCLUDED.mode, summary = EXCLUDED.summary, 
-                          message = EXCLUDED.message, total_scheduled_minutes = EXCLUDED.total_scheduled_minutes, 
-                          overload_risk_score = EXCLUDED.overload_risk_score
-            RETURNING id
-        ''', {
-            "uid": user_id, "pdate": plan_date, "mode": mode,
-            "sum": summary, "msg": message, "mins": total_minutes, "risk": risk_score
-        })
+            SELECT id FROM public.ai_morning_plans 
+            WHERE user_id = %(uid)s AND plan_date = %(pdate)s
+        ''', {"uid": user_id, "pdate": plan_date})
+        existing = cur.fetchone()
+
+        if existing:
+            cur.execute('''
+                UPDATE public.ai_morning_plans 
+                SET mode = %(mode)s, summary = %(sum)s, message = %(msg)s, 
+                    total_scheduled_minutes = %(mins)s, overload_risk_score = %(risk)s
+                WHERE id = %(id)s
+                RETURNING id
+            ''', {
+                "mode": mode, "sum": summary, "msg": message, "mins": total_minutes, 
+                "risk": risk_score, "id": existing[0]
+            })
+        else:
+            cur.execute('''
+                INSERT INTO public.ai_morning_plans 
+                (user_id, plan_date, mode, summary, message, total_scheduled_minutes, overload_risk_score) 
+                VALUES (%(uid)s, %(pdate)s, %(mode)s, %(sum)s, %(msg)s, %(mins)s, %(risk)s)
+                RETURNING id
+            ''', {
+                "uid": user_id, "pdate": plan_date, "mode": mode,
+                "sum": summary, "msg": message, "mins": total_minutes, "risk": risk_score
+            })
+            
         plan_id = cur.fetchone()[0]
     conn.commit()
     return str(plan_id)
@@ -240,7 +256,7 @@ def save_reply_draft(conn: Connection, user_id: str, original_message: str, user
         cur.execute('''
             INSERT INTO public.ai_reply_drafts 
             (user_id, original_message, user_intent, draft_options, source) 
-            VALUES (%(uid)s, %(msg)s, %(int)s, %(opt)s, %(src)s)
+            VALUES (%(uid)s, %(msg)s, %(int)s, %(opt)s::jsonb, %(src)s)
         ''', {
             "uid": user_id, "msg": original_message, "int": user_intent or "", 
             "opt": json.dumps(options), "src": source
@@ -252,7 +268,7 @@ def save_transition_script(conn: Connection, user_id: str, transition_type: str,
         cur.execute('''
             INSERT INTO public.ai_transition_scripts 
             (user_id, transition_type, title, script_steps, source) 
-            VALUES (%(uid)s, %(ttype)s, %(title)s, %(steps)s, %(src)s)
+            VALUES (%(uid)s, %(ttype)s, %(title)s, %(steps)s::jsonb, %(src)s)
         ''', {
             "uid": user_id, "ttype": transition_type, "title": title, 
             "steps": json.dumps(steps), "src": source
