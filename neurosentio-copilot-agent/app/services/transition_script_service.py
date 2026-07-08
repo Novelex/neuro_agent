@@ -7,6 +7,7 @@ Currently uses rule-based fallback logic without DB ORM dependencies.
 
 import logging
 import uuid
+import time
 from typing import Optional, List
 from psycopg2.extensions import connection as Connection
 
@@ -14,7 +15,11 @@ from app.core import supabase_queries as sq
 from app.schemas.transition_script_schema import (
     TransitionScriptGenerateRequest,
     TransitionScriptGenerateResponse,
+    TransitionScriptLLMOutput,
 )
+from app.llm.client_factory import get_llm_client
+from app.services.llm_rate_limit_service import check_rate_limit, log_rate_limit_skip
+from app.prompts import transition_scripts as ts_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +151,7 @@ def _get_template_steps(
     return steps[:max_steps]
 
 
-def generate_transition_script(
+async def generate_transition_script(
     db: Connection,
     user_id: str,
     request: TransitionScriptGenerateRequest,
@@ -154,16 +159,49 @@ def generate_transition_script(
     
     is_recovery = request.current_energy is not None and request.current_energy < 30
     max_steps = min(request.max_steps, 3) if is_recovery else request.max_steps
+    tmpl = _TEMPLATES.get(request.transition_type, _TEMPLATES["custom"])
 
-    steps = _get_template_steps(
+    user_prompt = ts_prompts.build_user_prompt(
         transition_type=request.transition_type,
-        is_recovery=is_recovery,
         next_task_title=request.next_task_title,
+        current_energy=request.current_energy,
+        context_note=request.context_note,
+        sensory_state=request.sensory_state,
         max_steps=max_steps,
     )
 
-    tmpl = _TEMPLATES.get(request.transition_type, _TEMPLATES["custom"])
-    title = tmpl["title"]
+    llm_client = None
+    source = "llm"
+    steps = []
+
+    try:
+        llm_client = get_llm_client()
+        rate_result = check_rate_limit(db, user_id)
+        if not rate_result["allowed"]:
+            logger.warning("Rate limit exceeded for user %s: %s", user_id, rate_result["reason"])
+            log_rate_limit_skip(db, user_id, "transition_script")
+            raise Exception("Rate limit exceeded")
+            
+        raw = await llm_client.generate_json(
+            system_prompt=ts_prompts.SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            schema_name="transition_script",
+        )
+        
+        llm_output = TransitionScriptLLMOutput(**raw)
+        steps = llm_output.script_steps[:max_steps]
+        
+    except Exception as e:
+        logger.warning(f"LLM failed for transition script — using fallback. Reason: {e}")
+        source = "fallback"
+        steps = _get_template_steps(
+            transition_type=request.transition_type,
+            is_recovery=is_recovery,
+            next_task_title=request.next_task_title,
+            max_steps=max_steps,
+        )
+
+    title = tmpl["title"] if request.transition_type != "custom" or not request.next_task_title else request.next_task_title
     message = tmpl["message"]
 
     sq.save_transition_script(
@@ -172,7 +210,7 @@ def generate_transition_script(
         transition_type=request.transition_type,
         title=title,
         steps=steps,
-        source="mock"
+        source=source
     )
     
     script_id = str(uuid.uuid4())
@@ -182,6 +220,6 @@ def generate_transition_script(
         transition_type=request.transition_type,
         title=title,
         script_steps=steps,
-        source="mock",
+        source=source,
         message=message,
     )

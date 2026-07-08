@@ -23,7 +23,7 @@ router = APIRouter(prefix="/transitions", tags=["Transitions"])
     response_model=TransitionScriptGenerateResponse,
     summary="Generate a transition script",
 )
-def generate_transition(
+async def generate_transition(
     body: TransitionScriptGenerateRequest,
     user_id: str = Depends(get_current_user_id),
     db: Connection = Depends(get_db),
@@ -36,4 +36,4 @@ def generate_transition(
 
     If current_energy < 30, generates a shorter recovery version (≤ 3 steps).
     """
-    return generate_transition_script(db=db, user_id=user_id, request=body)
+    return await generate_transition_script(db=db, user_id=user_id, request=body)

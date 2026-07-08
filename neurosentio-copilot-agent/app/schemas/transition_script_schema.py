@@ -77,3 +77,11 @@ class TransitionScriptGenerateResponse(BaseModel):
 # ──────────────────────────────────────────────
 class TransitionScriptRatingUpdate(BaseModel):
     success_rating: int = Field(ge=1, le=5)
+
+
+# ──────────────────────────────────────────────
+# Internal LLM Output
+# ──────────────────────────────────────────────
+class TransitionScriptLLMOutput(BaseModel):
+    script_steps: List[str] = Field(min_length=1, max_length=8)
+
