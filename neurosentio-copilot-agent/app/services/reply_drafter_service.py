@@ -223,6 +223,7 @@ async def draft_reply(
     return ReplyDraftSchema(
         id=draft_id,
         user_id=user_id,
+        source_type="manual",
         original_message=stored_original,
         message_sender=request.message_sender,
         message_subject=request.message_subject,
