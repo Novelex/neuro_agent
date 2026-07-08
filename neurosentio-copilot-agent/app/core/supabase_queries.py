@@ -18,9 +18,9 @@ def get_open_tasks(conn: Connection, user_id: str) -> List[Dict[str, Any]]:
     """Fetch incomplete tasks from planner_tasks."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute('''
-            SELECT id, title, subtitle, time, date, created_at, isCompleted 
+            SELECT id, title, subtitle, time, date, created_at, "isCompleted" 
             FROM public.planner_tasks 
-            WHERE user_id = %(uid)s AND iscompleted = false
+            WHERE user_id = %(uid)s AND "isCompleted" = false
             ORDER BY created_at DESC
         ''', {"uid": user_id})
         return [dict(row) for row in cur.fetchall()]
@@ -29,7 +29,7 @@ def get_task(conn: Connection, user_id: str, task_id: str) -> Optional[Dict[str,
     """Fetch a single task by ID."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute('''
-            SELECT id, title, subtitle, time, date, iscompleted 
+            SELECT id, title, subtitle, time, date, "isCompleted" 
             FROM public.planner_tasks 
             WHERE user_id = %(uid)s AND id = %(tid)s
         ''', {"uid": user_id, "tid": task_id})
