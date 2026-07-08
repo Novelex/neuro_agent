@@ -80,7 +80,7 @@ def log_rate_limit_skip(
 ) -> None:
     """Record a skipped call in usage logs."""
     sq.log_llm_usage(
-        db=db,
+        conn=db,
         user_id=user_id,
         feature=feature,
         provider=provider,

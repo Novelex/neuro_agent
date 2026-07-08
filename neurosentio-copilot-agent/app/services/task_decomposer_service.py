@@ -263,7 +263,7 @@ async def decompose_task(
         if not rate_result["allowed"]:
             logger.warning("Rate limit exceeded for user %s: %s", user_id, rate_result["reason"])
             sq.log_llm_usage(
-                db=db, user_id=user_id, feature="task_decomposition",
+                conn=db, user_id=user_id, feature="task_decomposition",
                 provider=provider, model=model or "", status="rate_limited",
             )
             actions, mode = _fallback_decompose(task["title"], request.current_energy, request.max_actions)
@@ -290,7 +290,7 @@ async def decompose_task(
 
     cost = estimate_llm_cost(provider, model, None, None)
     sq.log_llm_usage(
-        db=db, user_id=user_id, feature="task_decomposition",
+        conn=db, user_id=user_id, feature="task_decomposition",
         provider=provider, model=model or "", status=llm_status,
         latency_ms=latency_ms, cost=cost
     )

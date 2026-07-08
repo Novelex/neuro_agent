@@ -167,7 +167,7 @@ def generate_transition_script(
     message = tmpl["message"]
 
     sq.save_transition_script(
-        db=db,
+        conn=db,
         user_id=user_id,
         transition_type=request.transition_type,
         title=title,

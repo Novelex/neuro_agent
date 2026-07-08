@@ -147,7 +147,7 @@ async def draft_reply(
         if not rate_result["allowed"]:
             logger.warning("Rate limit exceeded for user %s: %s", user_id, rate_result["reason"])
             sq.log_llm_usage(
-                db=db, user_id=user_id, feature="reply_drafting",
+                conn=db, user_id=user_id, feature="reply_drafting",
                 provider=provider, model=model or "", status="rate_limited",
             )
             options = _build_fallback_options(
@@ -201,7 +201,7 @@ async def draft_reply(
 
     cost = estimate_llm_cost(provider, model, None, None) 
     sq.log_llm_usage(
-        db=db, user_id=user_id, feature="reply_drafting",
+        conn=db, user_id=user_id, feature="reply_drafting",
         provider=provider, model=model or "", status=llm_status,
         latency_ms=latency_ms, cost=cost
     )
@@ -210,7 +210,7 @@ async def draft_reply(
     stored_original = request.original_message
 
     sq.save_reply_draft(
-        db=db,
+        conn=db,
         user_id=user_id,
         original_message=stored_original,
         user_intent=request.user_intent or "",

@@ -233,7 +233,7 @@ async def generate_morning_plan(
         message = "Log your energy when you can. For now, this plan stays gentle and flexible."
 
     plan_id = sq.save_morning_plan(
-        db=db,
+        conn=db,
         user_id=user_id,
         plan_date=plan_date,
         mode=mode,

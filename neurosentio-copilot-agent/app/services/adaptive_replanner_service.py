@@ -123,7 +123,7 @@ def replan_day(
     
     # Save the updated plan
     new_plan_id = sq.save_morning_plan(
-        db=db,
+        conn=db,
         user_id=user_id,
         plan_date=today,
         mode=mode_after,
