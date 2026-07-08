@@ -80,40 +80,8 @@ class OpenRouterClient(BaseLLMClient):
         return self._openai_client
 
     async def _get_model_id(self) -> str:
-        """Resolve model ID, dynamically checking for the cheapest model if 'auto' or 'lowest-cost'."""
-        if self._model not in ("auto", "lowest-cost", "cheapest", "cheapest-model"):
-            return self._model
-
-        now = time.time()
-        # Use cached model ID if still fresh (1 hour duration)
-        if OpenRouterClient._cached_cheapest_model and (now - OpenRouterClient._cache_time < 3600):
-            return OpenRouterClient._cached_cheapest_model
-
-        import httpx
-        url = f"{self.OPENROUTER_BASE_URL}/models?supported_parameters=response_format&sort=pricing-low-to-high"
-        try:
-            logger.info("Querying OpenRouter for the cheapest model supporting response_format...")
-            async with httpx.AsyncClient(timeout=10) as client:
-                headers = {}
-                if self._api_key:
-                    headers["Authorization"] = f"Bearer {self._api_key}"
-                response = await client.get(url, headers=headers)
-                if response.status_code == 200:
-                    data = response.json()
-                    models = data.get("data", [])
-                    if models:
-                        for m in models:
-                            model_id = m.get("id")
-                            if model_id:
-                                logger.info(f"Resolved cheapest OpenRouter model: {model_id}")
-                                OpenRouterClient._cached_cheapest_model = model_id
-                                OpenRouterClient._cache_time = now
-                                return model_id
-        except Exception as e:
-            logger.warning(f"Failed to fetch cheapest OpenRouter model: {e}. Falling back to default.")
-
-        # Fallback if request fails
-        return "google/gemini-2.5-flash:free"
+        """Resolve model ID, strictly enforcing the free models router."""
+        return "openrouter/free"
 
     async def generate_json(
         self,
