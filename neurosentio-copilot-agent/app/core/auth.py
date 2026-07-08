@@ -62,27 +62,29 @@ def _verify_jwt_jwks(token: str, jwks_url: str, audience: Optional[str]) -> dict
     """
     Verify a JWT using JWKS (asymmetric keys — RS256/ES256).
 
-    This is the recommended path for newer Supabase projects that use
-    asymmetric signing keys. Currently documented as a future enhancement.
-
-    When implementing:
-    1. Fetch JWKS from jwks_url (cache with TTL)
-    2. Decode JWT header to find 'kid'
-    3. Match kid against JWKS keys
-    4. Verify signature using the public key
-    5. Validate claims (exp, aud, etc.)
+    Uses PyJWT's built-in PyJWKClient which fetches and caches
+    the public keys from the Supabase JWKS endpoint automatically.
     """
-    # FUTURE: Implement JWKS verification using PyJWT + cryptography
-    # Example implementation path:
-    #   from jwt import PyJWKClient
-    #   jwks_client = PyJWKClient(jwks_url, cache_keys=True)
-    #   signing_key = jwks_client.get_signing_key_from_jwt(token)
-    #   payload = jwt.decode(token, signing_key.key, algorithms=["RS256", "ES256"], audience=audience)
-    raise JWTVerificationError(
-        "JWKS verification is configured but not yet implemented. "
-        "Please use SUPABASE_JWT_SECRET for HS256 verification, "
-        "or implement JWKS support before public production launch."
-    )
+    try:
+        jwks_client = jwt.PyJWKClient(jwks_url, cache_keys=True)
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+
+        kwargs = {
+            "algorithms": ["RS256", "ES256"],
+        }
+        if audience:
+            kwargs["audience"] = audience
+
+        payload = jwt.decode(token, signing_key.key, **kwargs)
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise JWTVerificationError("Token has expired")
+    except jwt.InvalidAudienceError:
+        raise JWTVerificationError("Invalid token audience")
+    except jwt.PyJWKClientError as e:
+        raise JWTVerificationError(f"JWKS key fetch failed: {e}")
+    except jwt.InvalidTokenError as e:
+        raise JWTVerificationError(f"Invalid token: {e}")
 
 
 def _verify_token(token: str) -> dict:
