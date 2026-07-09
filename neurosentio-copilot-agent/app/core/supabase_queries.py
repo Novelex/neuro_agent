@@ -214,7 +214,7 @@ def get_next_open_micro_action(conn: Connection, user_id: str, exclude_high_ener
     """Fetch the single next open micro-action for the user, ordered by sort_order."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         query = '''
-            SELECT id, title, description, duration_minutes, energy_cost, status, sort_order, task_id
+            SELECT id, title, description, duration_minutes, energy_cost, sensory_cost, friction_level, status, sort_order, task_id, parent_id as parent_micro_action_id, user_id, plan_id, created_at, created_at as updated_at
             FROM public.ai_micro_actions
             WHERE user_id = %(uid)s AND status = 'open'
         '''
@@ -244,7 +244,7 @@ def snooze_high_energy_micro_actions(conn: Connection, user_id: str) -> int:
 def get_plan_micro_actions(conn: Connection, plan_id: str) -> List[Dict[str, Any]]:
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute('''
-            SELECT id, title, description, duration_minutes, energy_cost, status, sort_order, task_id
+            SELECT id, title, description, duration_minutes, energy_cost, sensory_cost, friction_level, status, sort_order, task_id, parent_id as parent_micro_action_id, user_id, plan_id, created_at, created_at as updated_at
             FROM public.ai_micro_actions
             WHERE plan_id = %(pid)s
             ORDER BY sort_order ASC
@@ -278,7 +278,7 @@ def save_transition_script(conn: Connection, user_id: str, transition_type: str,
 def get_micro_actions_for_task(conn: Connection, user_id: str, task_id: str) -> List[Dict[str, Any]]:
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute('''
-            SELECT id, title, description, duration_minutes, energy_cost, sensory_cost, friction_level, status, sort_order, task_id, parent_id
+            SELECT id, title, description, duration_minutes, energy_cost, sensory_cost, friction_level, status, sort_order, task_id, parent_id as parent_micro_action_id, user_id, plan_id, created_at, created_at as updated_at
             FROM public.ai_micro_actions
             WHERE user_id = %(uid)s AND task_id = %(tid)s
             ORDER BY sort_order ASC
@@ -296,7 +296,7 @@ def delete_open_micro_actions_for_task(conn: Connection, user_id: str, task_id: 
 def get_micro_action_by_id(conn: Connection, user_id: str, micro_action_id: str) -> Optional[Dict[str, Any]]:
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute('''
-            SELECT id, title, description, duration_minutes, energy_cost, sensory_cost, friction_level, status, sort_order, task_id, parent_id
+            SELECT id, title, description, duration_minutes, energy_cost, sensory_cost, friction_level, status, sort_order, task_id, parent_id as parent_micro_action_id, user_id, plan_id, created_at, created_at as updated_at
             FROM public.ai_micro_actions
             WHERE user_id = %(uid)s AND id = %(maid)s
         ''', {"uid": user_id, "maid": micro_action_id})
