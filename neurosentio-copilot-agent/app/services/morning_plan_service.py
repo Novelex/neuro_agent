@@ -151,7 +151,7 @@ async def generate_morning_plan(
     sensory_state = request.sensory_state
 
     # 3. Fetch open tasks
-    open_tasks = sq.get_open_tasks(db, user_id)
+    open_tasks = sq.get_open_tasks(db, user_id, for_date=plan_date)
     high_priority = [] # Priority not in new schema, but that's fine.
 
     # 7. Basic Risk calculation without calendar/stuck tasks

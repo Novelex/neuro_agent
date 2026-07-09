@@ -14,15 +14,21 @@ Connection = psycopg2.extensions.connection
 
 # ─── Reads (from Flutter's schema) ────────────────────────────────────
 
-def get_open_tasks(conn: Connection, user_id: str) -> List[Dict[str, Any]]:
+def get_open_tasks(conn: Connection, user_id: str, for_date: Optional[date] = None) -> List[Dict[str, Any]]:
     """Fetch incomplete tasks from planner_tasks."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute('''
+        query = '''
             SELECT id, title, subtitle, time, date, created_at, "isCompleted" 
             FROM public.planner_tasks 
             WHERE user_id = %(uid)s AND "isCompleted" = false
-            ORDER BY created_at DESC
-        ''', {"uid": user_id})
+        '''
+        params = {"uid": user_id}
+        if for_date:
+            query += ' AND "date" = %(fdate)s'
+            params["fdate"] = for_date
+        
+        query += ' ORDER BY created_at DESC'
+        cur.execute(query, params)
         return [dict(row) for row in cur.fetchall()]
 
 def get_task(conn: Connection, user_id: str, task_id: str) -> Optional[Dict[str, Any]]:
