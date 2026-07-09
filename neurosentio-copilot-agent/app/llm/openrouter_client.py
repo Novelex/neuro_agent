@@ -115,7 +115,6 @@ class OpenRouterClient(BaseLLMClient):
         try:
             response = await client.chat.completions.create(
                 model=model_to_use,
-                response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},

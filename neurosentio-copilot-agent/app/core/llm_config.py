@@ -25,7 +25,7 @@ class LLMSettings(BaseSettings):
     openrouter_model: str = "google/gemini-2.0-flash-lite-preview-02-05:free"
 
     # ── Request behaviour ─────────────────────────────────────────────
-    llm_timeout_seconds: int = 30
+    llm_timeout_seconds: int = 60
     llm_max_retries: int = 1
 
     # ── Logging control — privacy-safe defaults ───────────────────────

@@ -382,7 +382,7 @@ async def make_micro_action_smaller(
     
     sq.save_micro_actions(db, user_id, task_id, None, smaller)
     all_mas = sq.get_micro_actions_for_task(db, user_id, task_id)
-    saved_smaller = [m for m in all_mas if str(m["parent_id"]) == str(original["id"])]
+    saved_smaller = [m for m in all_mas if str(m.get("parent_micro_action_id")) == str(original["id"])]
 
     return MakeSmallerResponse(
         original_micro_action=MicroActionSchema(**original),
