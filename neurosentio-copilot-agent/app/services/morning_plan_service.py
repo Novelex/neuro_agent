@@ -115,7 +115,7 @@ async def _generate_llm_plan_text(
         )
         return summary, message, steps
 
-    except (LLMError, ValueError) as exc:
+    except Exception as exc:
         logger.warning(
             "Morning plan LLM call failed — using fallback. Reason: %s", exc
         )
