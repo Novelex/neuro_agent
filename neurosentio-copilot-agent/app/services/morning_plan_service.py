@@ -145,8 +145,12 @@ async def generate_morning_plan(
         linked_mas = sq.get_plan_micro_actions(db, existing_plan["id"])
         return _build_response_from_existing(existing_plan, linked_mas, request)
 
-    # 2. Fetch open tasks from Supabase
-    open_tasks = sq.get_open_tasks(db, user_id)
+    # 2. Fetch open tasks (from request body if provided, or from Supabase for target date)
+    if request.tasks is not None:
+        open_tasks = request.tasks
+        logger.info("Using %d tasks provided directly in request body", len(open_tasks))
+    else:
+        open_tasks = sq.get_open_tasks(db, user_id, for_date=plan_date)
 
     task_count = len(open_tasks)
     fallback_summary = (

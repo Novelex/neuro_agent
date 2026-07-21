@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from datetime import date, datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
@@ -18,6 +18,7 @@ class MorningPlanRequest(BaseModel):
     force_regenerate: bool = False
     auto_decompose: bool = True
     include_transition_scripts: bool = True
+    tasks: Optional[List[Dict[str, Any]]] = None
 
 
 # ──────────────────────────────────────────────
