@@ -11,6 +11,8 @@ This document serves as the ultimate master list of the actively implemented des
 *   **Energy Tracker**: Uses existing NeuroSentio battery logs + additional signals
     *   **Status**: ✅ DONE (`GET /context/energy/trend` uses existing logs to find trends)
 
+
+
 ---
 
 ## B. Planning Brain (generates the daily plan)
