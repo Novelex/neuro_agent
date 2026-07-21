@@ -21,14 +21,9 @@ def get_open_tasks(conn: Connection, user_id: str, for_date: Optional[date] = No
             SELECT id, title, subtitle, time, date, created_at, "isCompleted" 
             FROM public.planner_tasks 
             WHERE user_id = %(uid)s AND "isCompleted" = false
+            ORDER BY created_at DESC
         '''
-        params = {"uid": user_id}
-        if for_date:
-            query += ' AND "date" = %(fdate)s'
-            params["fdate"] = for_date
-        
-        query += ' ORDER BY created_at DESC'
-        cur.execute(query, params)
+        cur.execute(query, {"uid": user_id})
         return [dict(row) for row in cur.fetchall()]
 
 def get_task(conn: Connection, user_id: str, task_id: str) -> Optional[Dict[str, Any]]:
@@ -193,13 +188,25 @@ def set_morning_plan_recovery_mode(conn: Connection, user_id: str, plan_date: da
         ''', {"uid": user_id, "pdate": plan_date})
     conn.commit()
 
-def get_today_morning_plan(conn: Connection, user_id: str, plan_date: date) -> Optional[Dict[str, Any]]:
+def get_today_morning_plan(conn: Connection, user_id: str, plan_date: Optional[date] = None) -> Optional[Dict[str, Any]]:
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        if plan_date:
+            cur.execute('''
+                SELECT id, plan_date, mode, summary, message, total_scheduled_minutes, overload_risk_score, created_at
+                FROM public.ai_morning_plans
+                WHERE user_id = %(uid)s AND plan_date = %(pdate)s
+                ORDER BY created_at DESC LIMIT 1
+            ''', {"uid": user_id, "pdate": plan_date})
+            result = cur.fetchone()
+            if result:
+                return dict(result)
+
         cur.execute('''
-            SELECT id, mode, summary, message, total_scheduled_minutes, overload_risk_score
+            SELECT id, plan_date, mode, summary, message, total_scheduled_minutes, overload_risk_score, created_at
             FROM public.ai_morning_plans
-            WHERE user_id = %(uid)s AND plan_date = %(pdate)s
-        ''', {"uid": user_id, "pdate": plan_date})
+            WHERE user_id = %(uid)s
+            ORDER BY created_at DESC LIMIT 1
+        ''', {"uid": user_id})
         result = cur.fetchone()
         return dict(result) if result else None
 

@@ -146,7 +146,7 @@ async def generate_morning_plan(
         return _build_response_from_existing(existing_plan, linked_mas, request)
 
     # 2. Fetch open tasks from Supabase
-    open_tasks = sq.get_open_tasks(db, user_id, for_date=plan_date)
+    open_tasks = sq.get_open_tasks(db, user_id)
 
     task_count = len(open_tasks)
     fallback_summary = (
@@ -196,12 +196,12 @@ async def generate_morning_plan(
     planned_items: List[PlannedMicroAction] = []
     time_offset = 0
     for ma in saved_mas:
-        dur = ma.get("duration_minutes", 15)
+        dur = ma.get("duration_minutes") or 15
         scheduled = _schedule_time(request.start_time, time_offset)
         planned_items.append(
             PlannedMicroAction(
-                micro_action_id=ma["id"],
-                task_id=ma.get("task_id"),
+                micro_action_id=str(ma["id"]),
+                task_id=str(ma["task_id"]) if ma.get("task_id") else None,
                 title=ma["title"],
                 description=ma.get("description"),
                 scheduled_time=scheduled,
@@ -209,7 +209,7 @@ async def generate_morning_plan(
                 energy_cost=ma.get("energy_cost"),
                 sensory_cost=ma.get("sensory_cost"),
                 friction_level=ma.get("friction_level"),
-                status=ma["status"],
+                status=ma.get("status", "open"),
             )
         )
         time_offset += dur
@@ -239,33 +239,37 @@ def _build_response_from_existing(
     planned_items = []
 
     for ma in linked_mas:
+        dur = ma.get("duration_minutes") or 15
         scheduled = _schedule_time(request.start_time, time_offset)
         planned_items.append(
             PlannedMicroAction(
-                micro_action_id=ma["id"],
-                task_id=ma.get("task_id"),
+                micro_action_id=str(ma["id"]),
+                task_id=str(ma["task_id"]) if ma.get("task_id") else None,
                 title=ma["title"],
                 description=ma.get("description"),
                 scheduled_time=scheduled,
-                duration_minutes=ma.get("duration_minutes"),
+                duration_minutes=dur,
                 energy_cost=ma.get("energy_cost"),
                 sensory_cost=ma.get("sensory_cost"),
                 friction_level=ma.get("friction_level"),
-                status=ma["status"],
+                status=ma.get("status", "open"),
             )
         )
-        time_offset += ma.get("duration_minutes", 15)
+        time_offset += dur
+
+    raw_plan_date = plan.get("plan_date")
+    resolved_plan_date = raw_plan_date if isinstance(raw_plan_date, date) else (request.plan_date or datetime.now(timezone.utc).date())
 
     return MorningPlan(
         plan_id=str(plan["id"]),
-        plan_date=request.plan_date or datetime.now(timezone.utc).date(),
-        mode="normal",
+        plan_date=resolved_plan_date,
+        mode=plan.get("mode", "normal"),
         summary=plan.get("summary", ""),
         total_scheduled_minutes=time_offset,
-        overload_risk_score=0,
+        overload_risk_score=plan.get("overload_risk_score", 0),
         selected_micro_actions=planned_items,
         recovery_blocks=[],
         transition_suggestions=[],
         message=plan.get("message", "Pick the first task and begin."),
-        created_at=datetime.now(timezone.utc),
+        created_at=plan.get("created_at") or datetime.now(timezone.utc),
     )

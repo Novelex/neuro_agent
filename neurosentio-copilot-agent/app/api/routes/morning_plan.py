@@ -54,8 +54,7 @@ async def get_today_morning_plan(
     Returns today's morning plan if one has been generated.
     Returns 404 if no plan exists for today — call POST /copilot/morning-plan to create one.
     """
-    today = date.today()
-    plan_record = sq.get_today_morning_plan(db, user_id, today)
+    plan_record = sq.get_today_morning_plan(db, user_id)
     if not plan_record:
         raise HTTPException(
             status_code=404,
