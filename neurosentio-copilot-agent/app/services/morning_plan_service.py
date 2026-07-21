@@ -1,20 +1,27 @@
 """
-Morning Plan Service (Day 5).
+Morning Plan Service.
 
-Generates a structured daily plan from tasks, energy, and micro-actions.
-Refactored to read directly from Supabase, removing legacy calendar and stuck task logic
-since those tables do not exist in the new streamlined schema.
+Fetches the user's open tasks from Supabase and passes them to the LLM
+to generate a concrete, step-by-step plan for the entire day.
+
+No risk scoring, no recovery mode, no sensory/energy logic.
+Just tasks in → actionable steps out.
 """
 
 import logging
-from datetime import date, datetime, timezone, time, timedelta
-from typing import Optional, List, Tuple, Dict, Any
+import time as time_module
+from datetime import datetime, timezone
+from typing import Optional, List, Dict, Any
 
 from psycopg2.extensions import connection as Connection
 
 from app.core import supabase_queries as sq
-from app.services.task_decomposer_service import decompose_task
-from app.schemas.micro_action_schema import TaskDecomposeRequest
+from app.core.llm_config import get_llm_settings
+from app.llm.base import LLMError
+from app.llm.client_factory import get_llm_client
+from app.prompts import morning_plan as morning_plan_prompts
+from app.utils.llm_costs import estimate_llm_cost
+from app.services.llm_rate_limit_service import check_rate_limit
 from app.schemas.morning_plan_schema import (
     MorningPlan,
     MorningPlanRequest,
@@ -24,6 +31,7 @@ from app.schemas.morning_plan_schema import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Helpers
@@ -39,90 +47,84 @@ def _schedule_time(start_time: str, offset_minutes: int) -> str:
         return start_time
 
 
-def _pick_micro_actions(
-    micro_actions: List[Dict[str, Any]],
-    mode: str,
-    available_minutes: int,
-    max_count: int,
-) -> List[Dict[str, Any]]:
-    cost_order = {"low": 0, "medium": 1, "high": 2}
-    open_actions = [a for a in micro_actions if a["status"] == "open"]
+# ──────────────────────────────────────────────────────────────────────
+# LLM helper
+# ──────────────────────────────────────────────────────────────────────
 
-    if mode == "recovery":
-        open_actions.sort(key=lambda a: cost_order.get(a.get("energy_cost", "low"), 0))
-    # else: keep natural sort_order ordering from DB
+async def _generate_llm_plan_text(
+    db: Connection,
+    user_id: str,
+    open_tasks: List[Dict[str, Any]],
+    fallback_summary: str,
+    fallback_message: str,
+) -> tuple[str, str, List[Dict[str, Any]]]:
+    """
+    Call the LLM with the user's tasks to generate a step-by-step day plan.
 
-    selected = []
-    time_used = 0
+    Returns (summary, message, steps) where steps is a list of dicts with:
+      task_id, task_title, title, description, duration_minutes.
 
-    for action in open_actions:
-        if len(selected) >= max_count:
-            break
-        
-        dur = action.get("duration_minutes", 5)
-        if time_used + dur > available_minutes:
-            break
-            
-        selected.append(action)
-        time_used += dur
+    Falls back to (fallback_summary, fallback_message, []) on any failure.
+    """
+    settings = get_llm_settings()
+    model = settings.llm_model or ""
+    provider = "unknown"
+    latency_ms = None
 
-    return selected
+    try:
+        llm_client = get_llm_client()
+        provider = llm_client.__class__.__name__.lower().replace("client", "")
 
-
-def _build_transition_suggestions(
-    selected: List[Dict[str, Any]],
-    mode: str,
-) -> List[TransitionSuggestion]:
-    suggestions: List[TransitionSuggestion] = []
-
-    if selected:
-        suggestions.append(
-            TransitionSuggestion(
-                transition_type="starting_work",
-                title="Starting work",
-                script_preview="Put your phone face down. Open only what you need.",
+        rate_result = check_rate_limit(db, user_id)
+        if not rate_result["allowed"]:
+            logger.warning(
+                "Morning plan LLM skipped — rate limit for user %s: %s",
+                user_id,
+                rate_result["reason"],
             )
-        )
-
-    call_keywords = {"call", "phone", "supplier", "client", "meeting", "dial"}
-    for action in selected:
-        if any(kw in action.get("title", "").lower() for kw in call_keywords):
-            suggestions.append(
-                TransitionSuggestion(
-                    transition_type="making_call",
-                    title="Making a call",
-                    script_preview="Write the one thing you need to say. Start with 'Hi, I'm calling about…'",
-                )
+            sq.log_llm_usage(
+                conn=db, user_id=user_id, feature="morning_plan",
+                provider=provider, model=model, status="skipped_rate_limit",
             )
-            break
+            return fallback_summary, fallback_message, []
 
-    if mode == "recovery" and len(suggestions) < 2:
-        suggestions.append(
-            TransitionSuggestion(
-                transition_type="recovery_break",
-                title="Recovery break",
-                script_preview="Step away from the screen. Drink water. No tasks right now.",
-            )
+        user_prompt = morning_plan_prompts.build_user_prompt(open_tasks=open_tasks)
+
+        t0 = time_module.monotonic()
+        raw = await llm_client.generate_json(
+            system_prompt=morning_plan_prompts.SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            schema_name="MorningPlanSteps",
         )
+        latency_ms = int((time_module.monotonic() - t0) * 1000)
 
-    return suggestions[:2]
+        summary = raw.get("summary", "").strip()
+        message = raw.get("message", "").strip()
+        steps = raw.get("steps", [])
 
+        if not summary or not message:
+            raise ValueError("LLM response missing 'summary' or 'message' field")
+        if not isinstance(steps, list):
+            raise ValueError("LLM response 'steps' is not a list")
 
-def _build_summary(mode: str, count: int, energy: Optional[int]) -> str:
-    if mode == "recovery":
-        return (
-            "Today may need a lighter version. "
-            "The plan has been reduced to one small step and one recovery block."
+        cost = estimate_llm_cost(provider, model, None, None)
+        sq.log_llm_usage(
+            conn=db, user_id=user_id, feature="morning_plan",
+            provider=provider, model=model, status="success",
+            latency_ms=latency_ms, cost=cost,
         )
-    if energy is None:
-        return (
-            "Log your energy when you can. "
-            "For now, this plan stays gentle and flexible."
+        return summary, message, steps
+
+    except (LLMError, ValueError) as exc:
+        logger.warning(
+            "Morning plan LLM call failed — using fallback. Reason: %s", exc
         )
-    return (
-        f"Here is a light plan to help you start without carrying the whole day at once. "
-        f"{count} micro-action{'s' if count != 1 else ''} selected."
-    )
+        sq.log_llm_usage(
+            conn=db, user_id=user_id, feature="morning_plan",
+            provider=provider, model=model, status="fallback",
+            latency_ms=latency_ms or 0,
+        )
+        return fallback_summary, fallback_message, []
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -134,83 +136,72 @@ async def generate_morning_plan(
     user_id: str,
     request: MorningPlanRequest,
 ) -> MorningPlan:
-    
+
     plan_date = request.plan_date or datetime.now(timezone.utc).date()
 
-    # 1. Check existing
+    # 1. Return cached plan if it already exists for today
     existing_plan = sq.get_today_morning_plan(db, user_id, plan_date)
     if existing_plan and not request.force_regenerate:
         linked_mas = sq.get_plan_micro_actions(db, existing_plan["id"])
         return _build_response_from_existing(existing_plan, linked_mas, request)
 
-    # 2. Fetch energy
-    energy_value = request.current_energy
-    if energy_value is None:
-        energy_value = sq.get_latest_energy_level(db, user_id)
-
-    sensory_state = request.sensory_state
-
-    # 3. Fetch open tasks
+    # 2. Fetch open tasks from Supabase
     open_tasks = sq.get_open_tasks(db, user_id, for_date=plan_date)
-    high_priority = [] # Priority not in new schema, but that's fine.
 
-    # 7. Basic Risk calculation without calendar/stuck tasks
-    risk_score = 0
-    if energy_value is not None and energy_value < 40:
-        risk_score += 40
-    if len(open_tasks) > 5:
-        risk_score += 20
-    
-    mode = "recovery" if risk_score >= 60 else "normal"
-    if energy_value is not None and energy_value < 30:
-        mode = "recovery"
-
-    # 9. Determine limits
-    if mode == "recovery":
-        max_actions = 2
-    else:
-        max_actions = min(5, max(3, request.available_minutes // 20))
-
-    # 10. Collect micro-actions
-    all_open_micro_actions: List[Dict[str, Any]] = []
-
-    for task in open_tasks:
-        task_mas = [m for m in sq.get_micro_actions_for_task(db, user_id, task["id"]) if m["status"] == "open"]
-        if task_mas:
-            all_open_micro_actions.extend(task_mas)
-        elif request.auto_decompose:
-            try:
-                await decompose_task(
-                    db=db,
-                    user_id=user_id,
-                    task_id=task["id"],
-                    request=TaskDecomposeRequest(
-                        current_energy=energy_value,
-                        sensory_state=sensory_state,
-                        max_actions=max_actions,
-                        force_regenerate=False,
-                    ),
-                )
-                newly_created = [m for m in sq.get_micro_actions_for_task(db, user_id, task["id"]) if m["status"] == "open"]
-                all_open_micro_actions.extend(newly_created)
-            except Exception as exc:
-                logger.warning("Auto-decompose failed for task %s: %s", task["id"], exc)
-
-    # 11. Select actions
-    selected_mas = _pick_micro_actions(
-        all_open_micro_actions, mode, request.available_minutes, max_actions
+    task_count = len(open_tasks)
+    fallback_summary = (
+        f"You have {task_count} task{'s' if task_count != 1 else ''} for today."
     )
+    fallback_message = "Pick the first task and take one step at a time."
+
+    # 3. Call LLM — pass tasks, get back a step-by-step plan
+    summary, message, llm_steps = await _generate_llm_plan_text(
+        db=db,
+        user_id=user_id,
+        open_tasks=open_tasks,
+        fallback_summary=fallback_summary,
+        fallback_message=fallback_message,
+    )
+
+    # 4. Save the plan record
+    total_minutes = sum(s.get("duration_minutes", 15) for s in llm_steps)
+    plan_id = sq.save_morning_plan(
+        conn=db,
+        user_id=user_id,
+        plan_date=plan_date,
+        mode="normal",
+        summary=summary,
+        message=message,
+        total_minutes=total_minutes,
+        risk_score=0,
+    )
+
+    # 5. Persist each LLM step as a micro-action linked to this plan
+    for idx, step in enumerate(llm_steps):
+        task_id = step.get("task_id")
+        action = {
+            "title": step.get("title", ""),
+            "description": step.get("description"),
+            "duration_minutes": step.get("duration_minutes", 15),
+            "energy_cost": "low",
+            "sensory_cost": "low",
+            "friction_level": "low",
+            "sort_order": idx,
+        }
+        sq.save_micro_actions(db, user_id, task_id, plan_id, [action])
+
+    # 6. Re-fetch saved micro-actions to get real DB IDs + build response
+    saved_mas = sq.get_plan_micro_actions(db, plan_id)
 
     planned_items: List[PlannedMicroAction] = []
     time_offset = 0
-
-    for ma in selected_mas:
-        dur = ma.get("duration_minutes", 5)
+    for ma in saved_mas:
+        dur = ma.get("duration_minutes", 15)
         scheduled = _schedule_time(request.start_time, time_offset)
         planned_items.append(
             PlannedMicroAction(
                 micro_action_id=ma["id"],
-                task_id=ma["task_id"],
+                task_id=ma.get("task_id"),
                 title=ma["title"],
                 description=ma.get("description"),
                 scheduled_time=scheduled,
@@ -223,57 +214,16 @@ async def generate_morning_plan(
         )
         time_offset += dur
 
-    # 12. Save plan to DB
-    summary = _build_summary(mode, len(planned_items), energy_value)
-    
-    message = "Let's make this easier to start. Pick the first action and go from there."
-    if mode == "recovery":
-        message = "Today may need a lighter version. Let's start with one small step."
-    elif energy_value is None:
-        message = "Log your energy when you can. For now, this plan stays gentle and flexible."
-
-    plan_id = sq.save_morning_plan(
-        conn=db,
-        user_id=user_id,
-        plan_date=plan_date,
-        mode=mode,
-        summary=summary,
-        message=message,
-        total_minutes=time_offset,
-        risk_score=risk_score
-    )
-
-    # Note: Linking micro-actions to plan_id can be done via another query if necessary, 
-    # but for simplicity in this proxy architecture, we just return the plan.
-    # If the user wants `plan_id` formally saved in `ai_micro_actions`, we would run an UPDATE.
-    for ma in selected_mas:
-        # We can just run an update query if needed, or leave it decoupled.
-        pass
-
-    recovery_blocks: List[RecoveryBlock] = []
-    if mode == "recovery":
-        recovery_blocks.append(
-            RecoveryBlock(
-                title="Recovery break",
-                reason="Your energy is low — rest is part of the plan.",
-                suggested_duration_minutes=15,
-            )
-        )
-
-    transition_suggestions: List[TransitionSuggestion] = []
-    if request.include_transition_scripts:
-        transition_suggestions = _build_transition_suggestions(selected_mas, mode)
-
     return MorningPlan(
         plan_id=plan_id,
         plan_date=plan_date,
-        mode=mode,
+        mode="normal",
         summary=summary,
         total_scheduled_minutes=time_offset,
-        overload_risk_score=risk_score,
+        overload_risk_score=0,
         selected_micro_actions=planned_items,
-        recovery_blocks=recovery_blocks,
-        transition_suggestions=transition_suggestions,
+        recovery_blocks=[],
+        transition_suggestions=[],
         message=message,
         created_at=datetime.now(timezone.utc),
     )
@@ -284,15 +234,16 @@ def _build_response_from_existing(
     linked_mas: List[Dict[str, Any]],
     request: MorningPlanRequest,
 ) -> MorningPlan:
-    """Rebuild a MorningPlan response from a persisted plan record."""
+    """Rebuild a MorningPlan response from a previously persisted plan."""
     time_offset = 0
     planned_items = []
+
     for ma in linked_mas:
         scheduled = _schedule_time(request.start_time, time_offset)
         planned_items.append(
             PlannedMicroAction(
                 micro_action_id=ma["id"],
-                task_id=ma["task_id"],
+                task_id=ma.get("task_id"),
                 title=ma["title"],
                 description=ma.get("description"),
                 scheduled_time=scheduled,
@@ -303,18 +254,18 @@ def _build_response_from_existing(
                 status=ma["status"],
             )
         )
-        time_offset += ma.get("duration_minutes", 5)
+        time_offset += ma.get("duration_minutes", 15)
 
     return MorningPlan(
         plan_id=str(plan["id"]),
         plan_date=request.plan_date or datetime.now(timezone.utc).date(),
-        mode=plan["mode"],
+        mode="normal",
         summary=plan.get("summary", ""),
         total_scheduled_minutes=time_offset,
-        overload_risk_score=plan.get("overload_risk_score", 0),
+        overload_risk_score=0,
         selected_micro_actions=planned_items,
         recovery_blocks=[],
-        transition_suggestions=_build_transition_suggestions(linked_mas, plan["mode"]),
-        message=plan.get("message", "Your plan for today is already set. Let's make this easier to start."),
+        transition_suggestions=[],
+        message=plan.get("message", "Pick the first task and begin."),
         created_at=datetime.now(timezone.utc),
     )
