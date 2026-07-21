@@ -10,7 +10,7 @@ Just tasks in → actionable steps out.
 
 import logging
 import time as time_module
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from psycopg2.extensions import connection as Connection
