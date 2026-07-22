@@ -156,7 +156,7 @@ def save_micro_actions(conn: Connection, user_id: str, task_id: Optional[str], p
     conn.commit()
 
 def save_morning_plan(conn: Connection, user_id: str, plan_date: date, mode: str, summary: str, message: str, total_minutes: int, risk_score: int) -> str:
-    """Save a morning plan and return its ID."""
+    """Save a morning plan and return its ID. Deletes old micro-actions on update."""
     with conn.cursor() as cur:
         # Check if plan already exists for today
         cur.execute('''
@@ -166,6 +166,11 @@ def save_morning_plan(conn: Connection, user_id: str, plan_date: date, mode: str
         existing = cur.fetchone()
 
         if existing:
+            # Delete old micro-actions linked to this plan so they don't pile up
+            cur.execute('''
+                DELETE FROM public.ai_micro_actions
+                WHERE plan_id = %(pid)s
+            ''', {"pid": existing[0]})
             cur.execute('''
                 UPDATE public.ai_morning_plans 
                 SET mode = %(mode)s, summary = %(sum)s, message = %(msg)s, 
@@ -202,24 +207,15 @@ def set_morning_plan_recovery_mode(conn: Connection, user_id: str, plan_date: da
     conn.commit()
 
 def get_today_morning_plan(conn: Connection, user_id: str, plan_date: Optional[date] = None) -> Optional[Dict[str, Any]]:
+    """Return today's morning plan only. Never falls back to older plans."""
+    target = plan_date or date.today()
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        if plan_date:
-            cur.execute('''
-                SELECT id, plan_date, mode, summary, message, total_scheduled_minutes, overload_risk_score, created_at
-                FROM public.ai_morning_plans
-                WHERE user_id = %(uid)s AND plan_date = %(pdate)s
-                ORDER BY created_at DESC LIMIT 1
-            ''', {"uid": user_id, "pdate": plan_date})
-            result = cur.fetchone()
-            if result:
-                return dict(result)
-
         cur.execute('''
             SELECT id, plan_date, mode, summary, message, total_scheduled_minutes, overload_risk_score, created_at
             FROM public.ai_morning_plans
-            WHERE user_id = %(uid)s
+            WHERE user_id = %(uid)s AND plan_date = %(pdate)s
             ORDER BY created_at DESC LIMIT 1
-        ''', {"uid": user_id})
+        ''', {"uid": user_id, "pdate": target})
         result = cur.fetchone()
         return dict(result) if result else None
 
