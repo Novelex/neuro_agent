@@ -1,8 +1,11 @@
 """
 Morning Plan Service.
 
-Fetches the user's open tasks from Supabase and passes them to the LLM
-to generate a concrete, step-by-step plan for the entire day.
+Receives the user's open tasks from the frontend request body and passes
+them to the LLM to generate a concrete, step-by-step plan for the entire day.
+
+Tasks must be provided by the caller (Flutter) — the service no longer
+fetches tasks from Supabase itself to avoid timezone-related date mismatches.
 
 No risk scoring, no recovery mode, no sensory/energy logic.
 Just tasks in → actionable steps out.
@@ -13,6 +16,7 @@ import time as time_module
 from datetime import date, datetime, timezone
 from typing import Optional, List, Dict, Any
 
+from fastapi import HTTPException
 from psycopg2.extensions import connection as Connection
 
 from app.core import supabase_queries as sq
@@ -33,18 +37,6 @@ from app.schemas.morning_plan_schema import (
 logger = logging.getLogger(__name__)
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────────────────────────────
-
-def _schedule_time(start_time: str, offset_minutes: int) -> str:
-    """Compute HH:MM by adding offset_minutes to start_time string."""
-    try:
-        h, m = map(int, start_time.split(":"))
-        total = h * 60 + m + offset_minutes
-        return f"{(total // 60) % 24:02d}:{total % 60:02d}"
-    except Exception:
-        return start_time
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -145,12 +137,18 @@ async def generate_morning_plan(
         linked_mas = sq.get_plan_micro_actions(db, existing_plan["id"])
         return _build_response_from_existing(existing_plan, linked_mas, request)
 
-    # 2. Fetch open tasks (from request body if provided, or from Supabase for target date)
-    if request.tasks is not None:
-        open_tasks = request.tasks
-        logger.info("Using %d tasks provided directly in request body", len(open_tasks))
-    else:
-        open_tasks = sq.get_open_tasks(db, user_id, for_date=plan_date)
+    # 2. Tasks must be provided by the frontend in the request body.
+    #    The service no longer fetches from Supabase to avoid timezone date mismatches.
+    if request.tasks is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "'tasks' is required. "
+                "Please pass today's tasks in the request body."
+            ),
+        )
+    open_tasks = request.tasks
+    logger.info("Using %d tasks provided in request body", len(open_tasks))
 
     task_count = len(open_tasks)
     fallback_summary = (
@@ -201,14 +199,13 @@ async def generate_morning_plan(
     time_offset = 0
     for ma in saved_mas:
         dur = ma.get("duration_minutes") or 15
-        scheduled = _schedule_time(request.start_time, time_offset)
         planned_items.append(
             PlannedMicroAction(
                 micro_action_id=str(ma["id"]),
                 task_id=str(ma["task_id"]) if ma.get("task_id") else None,
                 title=ma["title"],
                 description=ma.get("description"),
-                scheduled_time=scheduled,
+                scheduled_time=None,
                 duration_minutes=dur,
                 energy_cost=ma.get("energy_cost"),
                 sensory_cost=ma.get("sensory_cost"),
@@ -244,14 +241,13 @@ def _build_response_from_existing(
 
     for ma in linked_mas:
         dur = ma.get("duration_minutes") or 15
-        scheduled = _schedule_time(request.start_time, time_offset)
         planned_items.append(
             PlannedMicroAction(
                 micro_action_id=str(ma["id"]),
                 task_id=str(ma["task_id"]) if ma.get("task_id") else None,
                 title=ma["title"],
                 description=ma.get("description"),
-                scheduled_time=scheduled,
+                scheduled_time=None,
                 duration_minutes=dur,
                 energy_cost=ma.get("energy_cost"),
                 sensory_cost=ma.get("sensory_cost"),

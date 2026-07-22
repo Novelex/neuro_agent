@@ -58,7 +58,6 @@ def build_user_prompt(open_tasks: List[Dict[str, Any]]) -> str:
 
     tasks_str = "\n".join(
         f"- ID: {t['id']} | Title: {t.get('title', 'Untitled')}"
-        + (f" | Scheduled time: {t['time']}" if t.get("time") else "")
         + (f" | Notes: {t.get('subtitle')}" if t.get("subtitle") else "")
         for t in open_tasks
     )

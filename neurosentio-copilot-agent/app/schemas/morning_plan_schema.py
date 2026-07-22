@@ -14,7 +14,6 @@ class MorningPlanRequest(BaseModel):
     current_energy: Optional[int] = Field(default=None, ge=0, le=100)
     sensory_state: Optional[str] = None
     available_minutes: int = Field(default=120, ge=10, le=480)
-    start_time: str = "09:00"
     force_regenerate: bool = False
     auto_decompose: bool = True
     include_transition_scripts: bool = True
