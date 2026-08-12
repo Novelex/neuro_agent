@@ -22,7 +22,7 @@ class LLMSettings(BaseSettings):
     llm_model: str = ""
 
     # Optional model defaults (used when llm_model is empty)
-    openrouter_model: str = "google/gemini-2.0-flash-lite-preview-02-05:free"
+    openrouter_model: str = "google/gemini-2.5-flash-lite"
 
     # ── Request behaviour ─────────────────────────────────────────────
     llm_timeout_seconds: int = 60
