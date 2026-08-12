@@ -91,10 +91,11 @@ class OpenRouterClient(BaseLLMClient):
         user_prompt: str,
         schema_name: str = "",
     ) -> dict:
-        if not self._api_key or not self._api_key.strip():
+        key = (self._api_key or "").strip()
+        if not key or key == "your_openrouter_api_key_here":
             raise LLMError(
-                "OpenRouter API key is missing. "
-                "Please set OPENROUTER_API_KEY in your environment/.env file."
+                "OpenRouter API key is missing or set to placeholder ('your_openrouter_api_key_here'). "
+                "Please set a valid OPENROUTER_API_KEY in environment variables."
             )
 
         try:

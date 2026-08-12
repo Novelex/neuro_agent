@@ -18,15 +18,16 @@ def get_llm_client() -> BaseLLMClient:
     provider = settings.llm_provider.lower().strip()
 
     if provider == "openrouter":
-        if not settings.openrouter_api_key or not settings.openrouter_api_key.strip():
+        key = (settings.openrouter_api_key or "").strip()
+        if not key or key == "your_openrouter_api_key_here":
             raise LLMError(
-                "OpenRouter API key is missing. "
-                "Please set OPENROUTER_API_KEY in your environment/.env file."
+                "OpenRouter API key is missing or set to placeholder ('your_openrouter_api_key_here'). "
+                "Please set a valid OPENROUTER_API_KEY in environment variables."
             )
         model_name = settings.llm_model or settings.openrouter_model or "auto"
         from app.llm.openrouter_client import OpenRouterClient
         return OpenRouterClient(
-            api_key=settings.openrouter_api_key,
+            api_key=key,
             model=model_name,
             timeout=settings.llm_timeout_seconds,
         )
