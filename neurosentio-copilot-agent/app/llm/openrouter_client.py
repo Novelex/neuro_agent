@@ -80,7 +80,9 @@ class OpenRouterClient(BaseLLMClient):
         return self._openai_client
 
     async def _get_model_id(self) -> str:
-        """Resolve model ID, strictly enforcing the free models router."""
+        """Resolve model ID, falling back to openrouter/free if not specified."""
+        if self._model and self._model != "auto":
+            return self._model
         return "openrouter/free"
 
     async def generate_json(
@@ -126,7 +128,7 @@ class OpenRouterClient(BaseLLMClient):
             )
             raw = response.choices[0].message.content or "{}"
             
-            # Clean up markdown code blocks if present
+            # Clean up markdown code blocks and conversational wrapper noise
             cleaned = raw.strip()
             if cleaned.startswith("```"):
                 # Find the first newline to strip ```json or ```
@@ -138,6 +140,26 @@ class OpenRouterClient(BaseLLMClient):
                 if cleaned.endswith("```"):
                     cleaned = cleaned[:-3].strip()
             
+            cleaned = cleaned.strip()
+
+            # Locate the absolute boundaries of the JSON payload
+            first_brace = cleaned.find("{")
+            first_bracket = cleaned.find("[")
+            
+            start_idx = -1
+            end_char = ""
+            if first_brace != -1 and (first_bracket == -1 or first_brace < first_bracket):
+                start_idx = first_brace
+                end_char = "}"
+            elif first_bracket != -1:
+                start_idx = first_bracket
+                end_char = "]"
+                
+            if start_idx != -1:
+                end_idx = cleaned.rfind(end_char)
+                if end_idx != -1 and end_idx > start_idx:
+                    cleaned = cleaned[start_idx:end_idx + 1]
+
             return json.loads(cleaned)
         except json.JSONDecodeError as exc:
             raise LLMError(f"OpenRouter returned invalid JSON (raw: {repr(raw)}): {exc}") from exc
